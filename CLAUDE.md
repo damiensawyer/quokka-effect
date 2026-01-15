@@ -35,3 +35,7 @@ The codebase uses Effect-TS patterns including:
 ## Running Examples
 
 Examples are meant to be run with Quokka.js (VS Code extension). Many files use `// @ts-nocheck` at the top and include `//?` comments for Quokka inline output.
+
+
+## Docs
+This is demos for Effect TS. The docs for LLMs are https://effect.website/docs#docs-for-llms
