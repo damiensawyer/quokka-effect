@@ -16,7 +16,7 @@ O.orElseSome(O.none(),() => "hello") //?
 O.orElseSome(O.some("dog"),() => "hello") //?
 
 orElseSome(O.some("dog"),() => "hello") //?
-orElseSome(O.none("dog"),() => "hello") //?
+orElseSome(O.none(),() => "hello") //?
 pipe(O.some("dog"),O.orElseSome(() => "blah")) //?
 pipe(O.none(),O.orElseSome(() => "blah")) //?
 flow(O.orElseSome(() => "blah"))(O.none()) //?
