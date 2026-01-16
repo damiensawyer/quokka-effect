@@ -35,7 +35,6 @@ const parsingSchemasToOptionalBrandedTypes = () => {
     Option.isNone(parseWithSchema(MyUserIdSchema, 123)) //?
     Option.isNone(parseWithSchema(MyUserIdSchema, 0)) //?
 
-
 }
 
 // === BASIC SCHEMAS ===
