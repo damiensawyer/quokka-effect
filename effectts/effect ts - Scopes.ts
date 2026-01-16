@@ -538,6 +538,8 @@ const transactionExample = async () => {
   assert(attemptStates[0].aCreated, "A was created in failed attempt");
   assert(attemptStates[0].bCreated, "B was created in failed attempt");
   assert(!attemptStates[0].cCreated, "C was not created in failed attempt");
+
+// broken????
   assert(attemptStates[0].aDeleted, "A was deleted during rollback");
   assert(attemptStates[0].bDeleted, "B was deleted during rollback");
   assert(!attemptStates[0].cDeleted, "C was not deleted (never created)");
