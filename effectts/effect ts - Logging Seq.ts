@@ -90,6 +90,6 @@ const program = Effect.gen(function* () {
 
 Effect.runFork(program.pipe(
   Effect.provide(SeqLoggerLayer({
-    url: "http://localhost:6380/api/events/raw"
+    url: "http://localhost:6342"
   }))
 ))
