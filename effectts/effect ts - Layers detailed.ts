@@ -1,7 +1,7 @@
 // Layers in Effect Tutorial
 // Based on documentation from https://effect.website/docs/service-management/layer
 
-import { Effect, Context, Layer, Console, Scope, Exit, Equal, pipe } from "effect";
+import { Effect, Context, Layer, Console, Scope, Exit, Equal, pipe, Data } from "effect";
 
 // Enhanced assert function that logs successful assertions
 const assert = (condition: boolean, message?: string) => {
@@ -452,22 +452,11 @@ const layerMemoizationExample = async () => {
 const layerErrorHandlingExample = async () => {
   console.log("=== Layer Error Handling Example ===");
 
-  // Define error classes
-  class ConfigError extends Error {
-    readonly _tag = "ConfigError";
-    constructor(message: string) {
-      super(message);
-      this.name = "ConfigError";
-    }
-  }
+  
 
-  class DatabaseError extends Error {
-    readonly _tag = "DatabaseError";
-    constructor(message: string) {
-      super(message);
-      this.name = "DatabaseError";
-    }
-  }
+  class ConfigError extends Data.TaggedError("ConfigError")<{
+    readonly message: string;
+  }> {}
 
   // Define service tags
   class Config extends Context.Tag("Config")<
@@ -475,6 +464,11 @@ const layerErrorHandlingExample = async () => {
     { readonly dbUrl: string }
   >() {}
 
+  
+  class DatabaseError extends Data.TaggedError("DatabaseError")<{
+    readonly message: string;
+    readonly code: string;
+  }> {}
   class Database extends Context.Tag("Database")<
     Database,
     { readonly query: (sql: string) => Effect.Effect<string[]> }
@@ -483,7 +477,7 @@ const layerErrorHandlingExample = async () => {
   // Create layers with potential errors
   const ConfigLive = Layer.succeed(Config, { dbUrl: "postgres://localhost" });
 
-  const ConfigErrorLayer = Layer.fail(new ConfigError("Missing database URL"));
+  const ConfigErrorLayer = Layer.fail(new ConfigError({message:"Missing database URL"} ));
 
   const DatabaseLive = Layer.effect(
     Database,
@@ -492,7 +486,7 @@ const layerErrorHandlingExample = async () => {
 
       // Simulate a database connection error
       if (config.dbUrl.includes("invalid")) {
-        return yield* Effect.fail(new DatabaseError("Failed to connect to database"));
+        return yield* Effect.fail(new DatabaseError({message:"Failed to connect to database", code: "CONN_ERR"}));
       }
 
       return {

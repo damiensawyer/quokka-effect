@@ -1,5 +1,5 @@
 //import { Effect, Console, Logger, LogLevel, Layer, Context, FiberRef, pipe } from "effect";
-import { Effect, Console, Logger, LogLevel, Layer, Context, FiberRef, pipe } from "effect";
+import { Effect, Console, Logger, LogLevel, Layer, Context, FiberRef, pipe, Data } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
     if (!condition) {
@@ -39,8 +39,8 @@ const logLevelsExample = async () => {
     });
 
     // Run with different log levels
-    const debugLevel = Logger.withMinimumLogLevel(LogLevel.Debug);
-    const warningLevel = Logger.withMinimumLogLevel(LogLevel.Warning);
+    // const debugLevel = Logger.withMinimumLogLevel(LogLevel.Debug);
+    // const warningLevel = Logger.withMinimumLogLevel(LogLevel.Warning);
 
     console.log("With Debug level:");
     await Effect.runPromise(program.pipe(Logger.withMinimumLogLevel(LogLevel.Debug)));
@@ -181,12 +181,10 @@ const loggingWithServicesExample = async () => {
 const errorLoggingExample = async () => {
     console.log("\n=== Error Logging ===");
 
-    class DatabaseError extends Error {
-        constructor(message: string, readonly code: string) {
-            super(message);
-            this.name = "DatabaseError";
-        }
-    }
+    class DatabaseError extends Data.TaggedError("DatabaseError")<{
+  readonly message: string;
+  readonly code: string;
+}> {}
 
     const flakyOperation = Effect.gen(function* () {
         yield* Effect.logInfo("Starting flaky operation");
@@ -196,7 +194,7 @@ const errorLoggingExample = async () => {
                 Effect.annotateLogs("error", "connection_timeout"),
                 Effect.annotateLogs("retryable", true)
             );
-            return yield* Effect.fail(new DatabaseError("Connection timeout", "CONN_TIMEOUT"));
+            return yield* Effect.fail(new DatabaseError({message:"Connection timeout", code: "CONN_TIMEOUT"} ));
         }
 
         yield* Effect.logInfo("Operation completed successfully");
@@ -378,15 +376,15 @@ const consoleVsLoggerExample = async () => {
 // === RUN ALL EXAMPLES ===
 const runAll = async () => {
     try {
-        await basicLoggingExample();
-        await logLevelsExample();
-        await structuredLoggingExample();
-        await customLoggerExample();
-        await loggingWithServicesExample();
+        // await basicLoggingExample();
+        // await logLevelsExample();
+        // await structuredLoggingExample();
+        // await customLoggerExample();
+        // await loggingWithServicesExample();
         await errorLoggingExample();
-        await loggingWithLayersExample();
-        await logContextExample();
-        await consoleVsLoggerExample();
+        // await loggingWithLayersExample();
+        // await logContextExample();
+        // await consoleVsLoggerExample();
 
         console.log("\n✅ All logging examples completed!");
     } catch (error) {

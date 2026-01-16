@@ -184,20 +184,34 @@ const getPostWithRetry = (postId: number) => {
 
 // --- CANCELLATION EXAMPLE ---
 // This shows how to make effects interruptible
+// const cancelableOperation = () => {
+//   const slowOperation = pipe(
+//     Effect.promise(() => new Promise(resolve => setTimeout(() => resolve("Done!"), 5000))), // if you make this shorter than 2000 you'll see the log
+//     Effect.interruptible,
+//     Effect.tap((message) => Effect.log(message)),
+//   );
+  
+//   const fiber = Effect.runFork(slowOperation);
+  
+//   // After 2 seconds, interrupt the operation
+//   setTimeout(() => {
+//     console.log("Interrupting operation...");
+//     Effect.runFork(Effect.interruptWith(fiber));
+//   }, 2000);
+// };
+
 const cancelableOperation = () => {
-  const slowOperation = pipe(
-    Effect.promise(() => new Promise(resolve => setTimeout(() => resolve("Done!"), 10000))),
+  const slowOperation = Effect.log("Done!").pipe(
+    Effect.delay("5 seconds"), // Automatically interruptible timer
     Effect.interruptible
   );
-  
+
   const fiber = Effect.runFork(slowOperation);
-  
-  // After 2 seconds, interrupt the operation
-  setTimeout(() => {
-    console.log("Interrupting operation...");
-    Effect.runFork(Effect.interruptWith(fiber));
-  }, 2000);
+
+  // Interrupt after 2 seconds
+  Effect.runFork(Effect.delay(fiber.interruptAsFork(fiber.id()), "2 seconds"));
 };
+
 
 // --- TEST FUNCTIONS ---
 const testGetPost = async () => {
@@ -250,7 +264,7 @@ const testErrorHandling = async () => {
 
 // --- RUN IN QUOKKA ---
 // Uncomment one of these lines to run tests in Quokka:
-testGetPost();//?
-testLoadPostWithDetails(); //?
+ //testGetPost();//?
+ //testLoadPostWithDetails(); //?
 testErrorHandling();
-cancelableOperation();
+//cancelableOperation();
