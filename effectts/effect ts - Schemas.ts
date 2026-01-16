@@ -571,7 +571,7 @@ const runAll = async () => {
         basicSchemasExample();
         objectSchemasExample();
         formattingEmail();
-        optionalFieldsExample();
+        //optionalFieldsExample();
         arrayRecordExample();
         brandedTypesExample();
         transformationsExample();
