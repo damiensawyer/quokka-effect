@@ -146,7 +146,7 @@ const getNonExistentPost = (): Effect.Effect<Post, HttpStatusError | HttpClientE
 const handlePostError = () => {
   return pipe(
     getNonExistentPost(),
-    Effect.catchTag("HttpStatusError", error => {
+    Effect.catchTag(HttpStatusError.name, error => {
       if (error.status === 404) {
         console.log("⚠️ Post not found");
         return Effect.succeed({ 
@@ -158,7 +158,7 @@ const handlePostError = () => {
       }
       return Effect.fail(error);
     }),
-    Effect.catchTag("HttpClientError", error => {
+    Effect.catchTag(HttpClientError.name, error => {
       console.log("⚠️ Network error:", error.message);
       return Effect.succeed({ 
         id: 0, 
