@@ -41,7 +41,7 @@ const capitalizeAndSpace: TextManipulatorType = { modify: (source) => spacer.mod
 class GreeterService extends Context.Tag("Greeter")<
     GreeterService,
     {
-        readonly getMessage: (name: string) => Effect.Effect<string, never, never>
+        getMessage: (name: string) => Effect.Effect<string, never, never>
     }
 >() { }
 
@@ -91,6 +91,7 @@ const CombinedTextServiceLive = Layer.effect(
         return {
             formatText: (source: string) => Effect.succeed(
                 appender.append(decorator.modify(manipulator.modify(source)))
+                //decorator.modify(manipulator.modify(source))
             )
         } as CombinedTextServiceType;
     })
@@ -111,7 +112,8 @@ const minimalUsefulLayerExample = async () => {
         Layer.succeed(TextManipulatorService, capitalizer),
         Layer.succeed(TextDecoratorService, starDecorator),
         Layer.succeed(GreeterService, kindGreeter),
-        Layer.succeed(AppenderService, appendSmily))
+        Layer.succeed(AppenderService, appendSmily)
+    )
 
     const appLayer = pipe(
         CombinedTextServiceLive,

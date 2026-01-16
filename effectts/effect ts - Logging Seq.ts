@@ -80,16 +80,16 @@ const program = Effect.gen(function* () {
   )
   
   for (let index = 0; index < 10; index++) {
-    var s  = `jimmy Was hairy ${index}`
+    var s  = `jimmy Was here ${index}`
     yield* Effect.log(s)
 
   }
 
-  yield* Effect.log("Application completed 123")
+  yield* Effect.log("Application completed")
 })
 
 Effect.runFork(program.pipe(
   Effect.provide(SeqLoggerLayer({
-    url: "https://localhost:4000/seq"
+    url: "http://localhost:6380/api/events/raw"
   }))
 ))
