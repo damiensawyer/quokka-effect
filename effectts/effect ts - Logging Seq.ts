@@ -1,3 +1,4 @@
+export {};
 import { Effect, Logger, LogLevel, Layer, HashMap, List, Cause } from "effect"
 import { HttpClient, HttpBody, FetchHttpClient } from "@effect/platform"
 
@@ -53,8 +54,8 @@ const makeSeqLogger = (config: SeqConfig) =>
         }
       })
     }).pipe(
-      Effect.provide(FetchHttpClient.layer)
-      //Effect.catchAll(() => Effect.void)
+      Effect.provide(FetchHttpClient.layer),
+      Effect.catchAll(() => Effect.void)
     )
 
     Effect.runPromise(sendToSeq).catch(() => {})

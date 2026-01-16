@@ -127,8 +127,8 @@ const basicLayerExample = async () => {
     Database,
     {
       query: (sql: string) =>
-        Effect.gen(function* () {
-          yield* Console.log(`Executing query: ${sql}`);
+        Effect.sync(() => {
+          console.log(`Executing query: ${sql}`);
           return ["result1", "result2"];
         })
     }
@@ -194,10 +194,10 @@ const layerConstructorsExample = async () => {
     DbConnection,
     Effect.gen(function* () {
       // Access other services or configs here
-      const config = yield* Config.string("DB_URL"); 
+      const config = yield* Config; 
       
       return {
-        connect: () => Effect.succeed(`Connected to ${config}`)
+        connect: () => Effect.succeed(`Connected to ${config.dbUrl}`)
       };
     })
   );
@@ -280,14 +280,10 @@ const layerCompositionExample = async () => {
   );
 
   // 1. Compose layers using provide (vertical composition)
-  const dbLayer = pipe(DatabaseLive, Layer.provide(ConfigLive));
+  const dbLayer = Layer.provide(DatabaseLive, ConfigLive);
 
   // 2. Compose layers using merge (horizontal composition)
-  const allLayers = pipe(
-    UserRepoLive,
-    Layer.provide(DatabaseLive),
-    Layer.merge(ConfigLive)
-  );
+  const allLayers = Layer.provide(UserRepoLive, dbLayer);
 
   // Create a program that uses UserRepo
   const program = Effect.gen(function* () {
@@ -305,539 +301,522 @@ const layerCompositionExample = async () => {
   assert(result.includes("postgres://localhost"), "Program used the correct database URL");
 };
 
-// // === SCOPED LAYERS ===
-// // Layers that manage resources with proper cleanup
-// const scopedLayersExample = async () => {
-//   console.log("=== Scoped Layers Example ===");
-
-//   // Service tag for a database connection
-//   class DbConnection extends Context.Tag("DbConnection")<
-//     DbConnection,
-//     { readonly query: (sql: string) => Effect.Effect<string[]> }
-//   >() {}
-
-//   // Track resource lifecycles
-//   let connectionOpened = false;
-//   let connectionClosed = false;
-//   let queriesRun = 0;
-
-//   // Create a scoped layer that acquires and releases a connection
-//   const DbConnectionLive = Layer.scoped(
-//     DbConnection,
-//     Effect.acquireRelease(
-//       // Acquire connection
-//       Effect.sync(() => {
-//         console.log("Opening database connection");
-//         connectionOpened = true;
-//         return {
-//           query: (sql: string) => Effect.sync(() => {
-//             console.log(`Executing query: ${sql}`);
-//             queriesRun++;
-//             return ["result1", "result2"];
-//           })
-//         };
-//       }),
-//       // Release connection
-//       () => Effect.sync(() => {
-//         console.log("Closing database connection");
-//         connectionClosed = true;
-//       })
-//     )
-//   );
-
-//   // Program that uses the connection to run multiple queries
-//   const program = Effect.gen(function* () {
-//     const db = yield* DbConnection;
-
-//     yield* db.query("SELECT * FROM users");
-//     yield* db.query("SELECT * FROM orders");
-
-//     return "Queries completed";
-//   });
-
-//   // Run the program with the scoped layer
-//   const runnable = Effect.scoped(
-//     program.pipe(Effect.provide(DbConnectionLive))
-//   );
-
-//   await Effect.runPromise(runnable);
-
-//   assert(connectionOpened, "Database connection was opened");
-//   assert(connectionClosed, "Database connection was properly closed");
-//   assert(queriesRun === 2, "Two queries were executed");
-// };
-
-// // === LAYER MEMOIZATION ===
-// // Demonstrating how layers are memoized
-// const layerMemoizationExample = async () => {
-//   console.log("=== Layer Memoization Example ===");
-
-//   // Define service tags
-//   class ServiceA extends Context.Tag("ServiceA")<
-//     ServiceA,
-//     { readonly value: string }
-//   >() {}
-
-//   class ServiceB extends Context.Tag("ServiceB")<
-//     ServiceB,
-//     { readonly useA: () => Effect.Effect<string> }
-//   >() {}
-
-//   class ServiceC extends Context.Tag("ServiceC")<
-//     ServiceC,
-//     { readonly useA: () => Effect.Effect<string> }
-//   >() {}
-
-//   // Track initialization
-//   let serviceAInitCount = 0;
-
-//   // Service A layer with side effect to track initialization
-//   const ServiceALive = Layer.effect(
-//     ServiceA,
-//     Effect.sync(() => {
-//       serviceAInitCount++;
-//       console.log(`ServiceA initialized (count: ${serviceAInitCount})`);
-//       return { value: `A-${serviceAInitCount}` };
-//     })
-//   );
-
-//   // Service B and C both depend on Service A
-//   const ServiceBLive = Layer.effect(
-//     ServiceB,
-//     Effect.gen(function* () {
-//       const serviceA = yield* ServiceA;
-//       return { 
-//         useA: () => Effect.succeed(`B using ${serviceA.value}`) 
-//       };
-//     })
-//   );
-
-//   const ServiceCLive = Layer.effect(
-//     ServiceC,
-//     Effect.gen(function* () {
-//       const serviceA = yield* ServiceA;
-//       return { 
-//         useA: () => Effect.succeed(`C using ${serviceA.value}`) 
-//       };
-//     })
-//   );
-
-//   // 1. Global memoization example
-//   const combinedLayer = Layer.merge(
-//     ServiceALive.pipe(Layer.provide(ServiceBLive)),
-//     ServiceALive.pipe(Layer.provide(ServiceCLive))
-//   );
-
-//   const program = Effect.gen(function* () {
-//     const serviceB = yield* ServiceB;
-//     const serviceC = yield* ServiceC;
-
-//     const bResult = yield* serviceB.useA();
-//     const cResult = yield* serviceC.useA();
-
-//     return { bResult, cResult };
-//   });
-
-//   const result = await Effect.runPromise(program.pipe(Effect.provide(combinedLayer)));
-
-//   assert(serviceAInitCount === 1, "ServiceA was initialized only once (memoized)");
-//   assert(result.bResult === "B using A-1", "ServiceB uses the correct ServiceA instance");
-//   assert(result.cResult === "C using A-1", "ServiceC uses the same ServiceA instance");
-
-//   // 2. Using Layer.fresh to bypass memoization
-//   serviceAInitCount = 0; // Reset counter
-
-//   const nonMemoizedLayer = Layer.merge(
-//     Layer.fresh(ServiceALive).pipe(Layer.provide(ServiceBLive)),
-//     Layer.fresh(ServiceALive).pipe(Layer.provide(ServiceCLive))
-//   );
-
-//   const result2 = await Effect.runPromise(program.pipe(Effect.provide(nonMemoizedLayer)));
-
-//   assert(serviceAInitCount === 2, "ServiceA was initialized twice (non-memoized)");
-//   assert(result2.bResult !== result2.cResult, "ServiceB and ServiceC use different ServiceA instances");
-// };
-
-// // === LAYER ERROR HANDLING ===
-// // How to handle errors in layers
-// const layerErrorHandlingExample = async () => {
-//   console.log("=== Layer Error Handling Example ===");
-
-//   // Define error classes
-//   class ConfigError extends Error {
-//     readonly _tag = "ConfigError";
-//     constructor(message: string) {
-//       super(message);
-//       this.name = "ConfigError";
-//     }
-//   }
-
-//   class DatabaseError extends Error {
-//     readonly _tag = "DatabaseError";
-//     constructor(message: string) {
-//       super(message);
-//       this.name = "DatabaseError";
-//     }
-//   }
-
-//   // Define service tags
-//   class Config extends Context.Tag("Config")<
-//     Config,
-//     { readonly dbUrl: string }
-//   >() {}
-
-//   class Database extends Context.Tag("Database")<
-//     Database,
-//     { readonly query: (sql: string) => Effect.Effect<string[]> }
-//   >() {}
-
-//   // Create layers with potential errors
-//   const ConfigLive = Layer.succeed(Config, { dbUrl: "postgres://localhost" });
-
-//   const ConfigError = Layer.fail(new ConfigError("Missing database URL"));
-
-//   const DatabaseLive = Layer.effect(
-//     Database,
-//     Effect.gen(function* () {
-//       const config = yield* Config;
-
-//       // Simulate a database connection error
-//       if (config.dbUrl.includes("invalid")) {
-//         return yield* Effect.fail(new DatabaseError("Failed to connect to database"));
-//       }
-
-//       return {
-//         query: (sql: string) => Effect.succeed([`Result for ${sql}`])
-//       };
-//     })
-//   );
-
-//   // Create programs to test layer error handling
-//   const program = Effect.gen(function* () {
-//     const db = yield* Database;
-//     return yield* db.query("SELECT 1");
-//   });
-
-//   // 1. Success case
-//   const successResult = await Effect.runPromiseExit(
-//     program.pipe(Effect.provide(pipe(DatabaseLive, Layer.provide(ConfigLive))))
-//   );
-
-//   assert(successResult._tag === "Success", "Program succeeded with valid configuration");
-
-//   // 2. Config error case
-//   const configErrorResult = await Effect.runPromiseExit(
-//     program.pipe(Effect.provide(pipe(DatabaseLive, Layer.provide(ConfigError))))
-//   );
-
-//   assert(configErrorResult._tag === "Failure", "Program failed with config error");
-//   assert(
-//     configErrorResult.cause.toString().includes("ConfigError"), 
-//     "Error was correctly propagated from config layer"
-//   );
-
-//   // 3. Error recovery with orElse
-//   const recoveryLayer = ConfigError.pipe(
-//     Layer.orElse(() => ConfigLive)
-//   ).pipe(Layer.provide(DatabaseLive));
-
-//   const recoveryResult = await Effect.runPromiseExit(
-//     program.pipe(Effect.provide(recoveryLayer))
-//   );
-
-//   assert(recoveryResult._tag === "Success", "Program succeeded with fallback configuration");
-// };
-
-// // === ADVANCED LAYER PATTERNS ===
-// // More sophisticated layer usage patterns
-// const advancedLayersExample = async () => {
-//   console.log("=== Advanced Layer Patterns ===");
-
-//   // Define a set of service tags for a more realistic example
-//   class Config extends Context.Tag("Config")<
-//     Config,
-//     { readonly apiKey: string; readonly dbUrl: string }
-//   >() {}
-
-//   class Database extends Context.Tag("Database")<
-//     Database,
-//     { 
-//       readonly connect: () => Effect.Effect<void>;
-//       readonly query: (sql: string) => Effect.Effect<string[]>;
-//       readonly disconnect: () => Effect.Effect<void>;
-//     }
-//   >() {}
-
-//   class UserRepository extends Context.Tag("UserRepository")<
-//     UserRepository,
-//     { 
-//       readonly getUser: (id: string) => Effect.Effect<{ id: string, name: string }>;
-//       readonly saveUser: (user: { id: string, name: string }) => Effect.Effect<void>;
-//     }
-//   >() {}
-
-//   class UserService extends Context.Tag("UserService")<
-//     UserService,
-//     {
-//       readonly getUserDetails: (id: string) => Effect.Effect<{ id: string, name: string, enriched: boolean }>;
-//     }
-//   >() {}
-
-//   class ExternalApiClient extends Context.Tag("ExternalApiClient")<
-//     ExternalApiClient,
-//     {
-//       readonly enrichUserData: (user: { id: string, name: string }) => 
-//         Effect.Effect<{ id: string, name: string, enriched: boolean }>;
-//     }
-//   >() {}
-
-//   // Track service lifecycle
-//   let dbConnected = false;
-//   let dbDisconnected = false;
-
-//   // 1. Environment-specific configurations using Layer.succeed
-//   const ConfigDev = Layer.succeed(Config, { 
-//     apiKey: "dev-api-key",
-//     dbUrl: "memory://dev-db" 
-//   });
-
-//   const ConfigProd = Layer.succeed(Config, { 
-//     apiKey: "prod-api-key",
-//     dbUrl: "postgres://prod-db" 
-//   });
-
-//   // 2. Resource management with Layer.scoped
-//   const DatabaseLive = Layer.scoped(
-//     Database,
-//     Effect.gen(function* () {
-//       const config = yield* Config;
-
-//       // Resource acquisition
-//       const connect = () => Effect.sync(() => {
-//         console.log(`Connecting to ${config.dbUrl}`);
-//         dbConnected = true;
-//       });
-
-//       // Resource cleanup
-//       const disconnect = () => Effect.sync(() => {
-//         console.log(`Disconnecting from ${config.dbUrl}`);
-//         dbDisconnected = true;
-//       });
-
-//       // Make sure connection is established before returning the service
-//       yield* connect();
-
-//       // Add finalizer to ensure disconnection
-//       yield* Effect.addFinalizer(() => disconnect());
-
-//       return {
-//         connect,
-//         disconnect,
-//         query: (sql: string) => Effect.succeed([`Result for ${sql} from ${config.dbUrl}`])
-//       };
-//     })
-//   );
-
-//   // 3. Service implementation depending on other services
-//   const UserRepositoryLive = Layer.effect(
-//     UserRepository,
-//     Effect.gen(function* () {
-//       const db = yield* Database;
-
-//       return {
-//         getUser: (id: string) => 
-//           pipe(
-//             db.query(`SELECT * FROM users WHERE id = '${id}'`),
-//             Effect.map(results => ({ id, name: results[0] || "Unknown" }))
-//           ),
-//         saveUser: (user) => 
-//           pipe(
-//             db.query(`INSERT INTO users VALUES ('${user.id}', '${user.name}')`),
-//             Effect.map(() => undefined)
-//           )
-//       };
-//     })
-//   );
-
-//   const ExternalApiClientLive = Layer.effect(
-//     ExternalApiClient,
-//     Effect.gen(function* () {
-//       const config = yield* Config;
-
-//       return {
-//         enrichUserData: (user) => Effect.succeed({
-//           ...user,
-//           enriched: true
-//         })
-//       };
-//     })
-//   );
-
-//   // 4. Composing multiple dependencies
-//   const UserServiceLive = Layer.effect(
-//     UserService,
-//     Effect.gen(function* () {
-//       const userRepo = yield* UserRepository;
-//       const apiClient = yield* ExternalApiClient;
-
-//       return {
-//         getUserDetails: (id: string) => 
-//           pipe(
-//             userRepo.getUser(id),
-//             Effect.flatMap(user => apiClient.enrichUserData(user))
-//           )
-//       };
-//     })
-//   );
-
-//   // 5. Putting it all together with a comprehensive layer
-//   const AppLayerDev = pipe(
-//     Layer.merge(
-//       DatabaseLive,
-//       ExternalApiClientLive
-//     ),
-//     Layer.provide(ConfigDev),
-//     Layer.merge(
-//       UserRepositoryLive,
-//       pipe(UserServiceLive, Layer.provide(pipe(UserRepositoryLive, Layer.merge(ExternalApiClientLive))))
-//     )
-//   );
-
-//   // Create a program that uses the UserService
-//   const program = Effect.gen(function* () {
-//     const userService = yield* UserService;
-//     const userDetails = yield* userService.getUserDetails("123");
-//     console.log("User details:", userDetails);
-//     return userDetails;
-//   });
-
-//   // Run the program with the dev layer configuration
-//   const result = await Effect.runPromise(Effect.scoped(
-//     program.pipe(Effect.provide(AppLayerDev))
-//   ));
-
-//   assert(result.id === "123", "Program returned the correct user ID");
-//   assert(result.enriched === true, "User data was properly enriched");
-//   assert(dbConnected, "Database connection was established");
-//   assert(dbDisconnected, "Database connection was properly closed");
-// };
-
-// // === TESTING WITH LAYERS ===
-// // How to use layers for testing
-// const testingWithLayersExample = async () => {
-//   console.log("=== Testing with Layers ===");
-
-//   // Define a service for a user repository
-//   class UserRepository extends Context.Tag("UserRepository")<
-//     UserRepository,
-//     {
-//       readonly getUser: (id: string) => Effect.Effect<{ id: string, name: string } | null>;
-//       readonly saveUser: (user: { id: string, name: string }) => Effect.Effect<void>;
-//     }
-//   >() {}
-
-//   // Define a service that uses the repository
-//   class UserService extends Context.Tag("UserService")<
-//     UserService,
-//     {
-//       readonly getUserById: (id: string) => Effect.Effect<{ id: string, name: string }, Error>;
-//       readonly createUser: (id: string, name: string) => Effect.Effect<void>;
-//     }
-//   >() {}
-
-//   // Implementation of UserService that depends on UserRepository
-//   const UserServiceLive = Layer.effect(
-//     UserService,
-//     Effect.gen(function* () {
-//       const repo = yield* UserRepository;
-
-//       return {
-//         getUserById: (id: string) => 
-//           pipe(
-//             repo.getUser(id),
-//             Effect.flatMap(user => 
-//               user ? Effect.succeed(user) : Effect.fail(new Error(`User ${id} not found`))
-//             )
-//           ),
-//         createUser: (id: string, name: string) => 
-//           repo.saveUser({ id, name })
-//       };
-//     })
-//   );
-
-//   // 1. Create a test implementation with in-memory repository
-//   const testUsers: Record<string, { id: string, name: string }> = {
-//     "1": { id: "1", name: "Test User" }
-//   };
-
-//   const UserRepositoryTest = Layer.succeed(
-//     UserRepository,
-//     {
-//       getUser: (id: string) => Effect.succeed(testUsers[id] || null),
-//       saveUser: (user) => Effect.sync(() => {
-//         testUsers[user.id] = user;
-//       })
-//     }
-//   );
-
-//   // 2. Create test cases
-
-//   // Test case 1: Get existing user
-//   const testGetExistingUser = Effect.gen(function* () {
-//     const userService = yield* UserService;
-//     const user = yield* userService.getUserById("1");
-
-//     assert(user.id === "1", "Retrieved correct user ID");
-//     assert(user.name === "Test User", "Retrieved correct user name");
-//   });
-
-//   // Test case 2: Get non-existent user
-//   const testGetNonExistentUser = Effect.gen(function* () {
-//     const userService = yield* UserService;
-
-//     const result = yield* Effect.either(userService.getUserById("999"));
-
-//     assert(result._tag === "Left", "Getting non-existent user returns an error");
-//     assert(
-//       result._tag === "Left" && result.left.message.includes("not found"), 
-//       "Error message indicates user not found"
-//     );
-//   });
-
-//   // Test case 3: Create a new user
-//   const testCreateUser = Effect.gen(function* () {
-//     const userService = yield* UserService;
-
-//     yield* userService.createUser("2", "New User");
-
-//     const user = yield* userService.getUserById("2");
-//     assert(user.id === "2", "Created user has correct ID");
-//     assert(user.name === "New User", "Created user has correct name");
-//   });
-
-//   // 3. Run the tests with the test layer
-//   const testLayer = pipe(UserServiceLive, Layer.provide(UserRepositoryTest));
-
-//   await Effect.runPromise(testGetExistingUser.pipe(Effect.provide(testLayer)));
-//   await Effect.runPromise(testGetNonExistentUser.pipe(Effect.provide(testLayer)));
-//   await Effect.runPromise(testCreateUser.pipe(Effect.provide(testLayer)));
-
-//   console.log("All tests passed!");
-// };
+const scopedLayersExample = async () => {
+  console.log("=== Scoped Layers Example ===");
+
+  // Service tag for a database connection
+  class DbConnection extends Context.Tag("DbConnection")<
+    DbConnection,
+    { readonly query: (sql: string) => Effect.Effect<string[]> }
+  >() {}
+
+  // Track resource lifecycles
+  let connectionOpened = false;
+  let connectionClosed = false;
+  let queriesRun = 0;
+
+  // Create a scoped layer that acquires and releases a connection
+  const DbConnectionLive = Layer.scoped(
+    DbConnection,
+    Effect.acquireRelease(
+      // Acquire connection
+      Effect.sync(() => {
+        console.log("Opening database connection");
+        connectionOpened = true;
+        return {
+          query: (sql: string) => Effect.sync(() => {
+            console.log(`Executing query: ${sql}`);
+            queriesRun++;
+            return ["result1", "result2"];
+          })
+        };
+      }),
+      // Release connection
+      () => Effect.sync(() => {
+        console.log("Closing database connection");
+        connectionClosed = true;
+      })
+    )
+  );
+
+  // Program that uses the connection to run multiple queries
+  const program = Effect.gen(function* () {
+    const db = yield* DbConnection;
+
+    yield* db.query("SELECT * FROM users");
+    yield* db.query("SELECT * FROM orders");
+
+    return "Queries completed";
+  });
+
+  // Run the program with the scoped layer
+  const runnable = Effect.scoped(
+    program.pipe(Effect.provide(DbConnectionLive))
+  );
+
+  await Effect.runPromise(runnable);
+
+  assert(connectionOpened, "Database connection was opened");
+  assert(connectionClosed, "Database connection was properly closed");
+  assert(queriesRun === 2, "Two queries were executed");
+};
+
+const layerMemoizationExample = async () => {
+  console.log("=== Layer Memoization Example ===");
+
+  // Define service tags
+  class ServiceA extends Context.Tag("ServiceA")<
+    ServiceA,
+    { readonly value: string }
+  >() {}
+
+  class ServiceB extends Context.Tag("ServiceB")<
+    ServiceB,
+    { readonly useA: () => Effect.Effect<string> }
+  >() {}
+
+  class ServiceC extends Context.Tag("ServiceC")<
+    ServiceC,
+    { readonly useA: () => Effect.Effect<string> }
+  >() {}
+
+  // Track initialization
+  let serviceAInitCount = 0;
+
+  // Service A layer with side effect to track initialization
+  const ServiceALive = Layer.effect(
+    ServiceA,
+    Effect.sync(() => {
+      serviceAInitCount++;
+      console.log(`ServiceA initialized (count: ${serviceAInitCount})`);
+      return { value: `A-${serviceAInitCount}` };
+    })
+  );
+
+  // Service B and C both depend on Service A
+  const ServiceBLive = Layer.effect(
+    ServiceB,
+    Effect.gen(function* () {
+      const serviceA = yield* ServiceA;
+      return { 
+        useA: () => Effect.succeed(`B using ${serviceA.value}`) 
+      };
+    })
+  );
+
+  const ServiceCLive = Layer.effect(
+    ServiceC,
+    Effect.gen(function* () {
+      const serviceA = yield* ServiceA;
+      return { 
+        useA: () => Effect.succeed(`C using ${serviceA.value}`) 
+      };
+    })
+  );
+
+  // 1. Global memoization example
+  const BLayer = Layer.provide(ServiceBLive, ServiceALive);
+  const CLayer = Layer.provide(ServiceCLive, ServiceALive);
+  const combinedLayer = Layer.merge(BLayer, CLayer);
+
+  const program = Effect.gen(function* () {
+    const serviceB = yield* ServiceB;
+    const serviceC = yield* ServiceC;
+
+    const bResult = yield* serviceB.useA();
+    const cResult = yield* serviceC.useA();
+
+    return { bResult, cResult };
+  });
+
+  const result = await Effect.runPromise(program.pipe(Effect.provide(combinedLayer)));
+
+  assert(serviceAInitCount === 1, "ServiceA was initialized only once (memoized)");
+  assert(result.bResult === "B using A-1", "ServiceB uses the correct ServiceA instance");
+  assert(result.cResult === "C using A-1", "ServiceC uses the same ServiceA instance");
+
+  // 2. Using Layer.fresh to bypass memoization
+  serviceAInitCount = 0; // Reset counter
+
+  const nonMemoizedLayer = Layer.merge(
+    Layer.provide(ServiceBLive, Layer.fresh(ServiceALive)),
+    Layer.provide(ServiceCLive, Layer.fresh(ServiceALive))
+  );
+
+  const result2 = await Effect.runPromise(program.pipe(Effect.provide(nonMemoizedLayer)));
+
+  assert(serviceAInitCount === 2, "ServiceA was initialized twice (non-memoized)");
+  assert(result2.bResult !== result2.cResult, "ServiceB and ServiceC use different ServiceA instances");
+};
+
+const layerErrorHandlingExample = async () => {
+  console.log("=== Layer Error Handling Example ===");
+
+  // Define error classes
+  class ConfigError extends Error {
+    readonly _tag = "ConfigError";
+    constructor(message: string) {
+      super(message);
+      this.name = "ConfigError";
+    }
+  }
+
+  class DatabaseError extends Error {
+    readonly _tag = "DatabaseError";
+    constructor(message: string) {
+      super(message);
+      this.name = "DatabaseError";
+    }
+  }
+
+  // Define service tags
+  class Config extends Context.Tag("Config")<
+    Config,
+    { readonly dbUrl: string }
+  >() {}
+
+  class Database extends Context.Tag("Database")<
+    Database,
+    { readonly query: (sql: string) => Effect.Effect<string[]> }
+  >() {}
+
+  // Create layers with potential errors
+  const ConfigLive = Layer.succeed(Config, { dbUrl: "postgres://localhost" });
+
+  const ConfigErrorLayer = Layer.fail(new ConfigError("Missing database URL"));
+
+  const DatabaseLive = Layer.effect(
+    Database,
+    Effect.gen(function* () {
+      const config = yield* Config;
+
+      // Simulate a database connection error
+      if (config.dbUrl.includes("invalid")) {
+        return yield* Effect.fail(new DatabaseError("Failed to connect to database"));
+      }
+
+      return {
+        query: (sql: string) => Effect.succeed([`Result for ${sql}`])
+      };
+    })
+  );
+
+  // Create programs to test layer error handling
+  const program = Effect.gen(function* () {
+    const db = yield* Database;
+    return yield* db.query("SELECT 1");
+  });
+
+  // 1. Success case
+  const successResult = await Effect.runPromiseExit(
+    program.pipe(Effect.provide(pipe(DatabaseLive, Layer.provide(ConfigLive))))
+  );
+
+  assert(successResult._tag === "Success", "Program succeeded with valid configuration");
+
+  // 2. Config error case
+  const configErrorResult = await Effect.runPromiseExit(
+    program.pipe(Effect.provide(pipe(DatabaseLive, Layer.provide(ConfigErrorLayer))))
+  );
+
+  assert(configErrorResult._tag === "Failure", "Program failed with config error");
+  assert(
+    configErrorResult._tag === "Failure" && configErrorResult.cause.toString().includes("ConfigError"), 
+    "Error was correctly propagated from config layer"
+  );
+
+  // 3. Error recovery with orElse
+  const recoveredConfigLayer = Layer.orElse(ConfigErrorLayer, () => ConfigLive);
+  const recoveryLayer = Layer.provide(DatabaseLive, recoveredConfigLayer);
+
+  const recoveryResult = await Effect.runPromiseExit(
+    program.pipe(Effect.provide(recoveryLayer))
+  );
+
+  assert(recoveryResult._tag === "Success", "Program succeeded with fallback configuration");
+};
+
+const advancedLayersExample = async () => {
+  console.log("=== Advanced Layer Patterns ===");
+
+  // Define a set of service tags for a more realistic example
+  class Config extends Context.Tag("Config")<
+    Config,
+    { readonly apiKey: string; readonly dbUrl: string }
+  >() {}
+
+  class Database extends Context.Tag("Database")<
+    Database,
+    { 
+      readonly connect: () => Effect.Effect<void>;
+      readonly query: (sql: string) => Effect.Effect<string[]>;
+      readonly disconnect: () => Effect.Effect<void>;
+    }
+  >() {}
+
+  class UserRepository extends Context.Tag("UserRepository")<
+    UserRepository,
+    { 
+      readonly getUser: (id: string) => Effect.Effect<{ id: string, name: string }>;
+      readonly saveUser: (user: { id: string, name: string }) => Effect.Effect<void>;
+    }
+  >() {}
+
+  class UserService extends Context.Tag("UserService")<
+    UserService,
+    {
+      readonly getUserDetails: (id: string) => Effect.Effect<{ id: string, name: string, enriched: boolean }>;
+    }
+  >() {}
+
+  class ExternalApiClient extends Context.Tag("ExternalApiClient")<
+    ExternalApiClient,
+    {
+      readonly enrichUserData: (user: { id: string, name: string }) => 
+        Effect.Effect<{ id: string, name: string, enriched: boolean }>;
+    }
+  >() {}
+
+  // Track service lifecycle
+  let dbConnected = false;
+  let dbDisconnected = false;
+
+  // 1. Environment-specific configurations using Layer.succeed
+  const ConfigDev = Layer.succeed(Config, { 
+    apiKey: "dev-api-key",
+    dbUrl: "memory://dev-db" 
+  });
+
+  const ConfigProd = Layer.succeed(Config, { 
+    apiKey: "prod-api-key",
+    dbUrl: "postgres://prod-db" 
+  });
+
+  // 2. Resource management with Layer.scoped
+  const DatabaseLive = Layer.scoped(
+    Database,
+    Effect.gen(function* () {
+      const config = yield* Config;
+
+      // Resource acquisition
+      const connect = () => Effect.sync(() => {
+        console.log(`Connecting to ${config.dbUrl}`);
+        dbConnected = true;
+      });
+
+      // Resource cleanup
+      const disconnect = () => Effect.sync(() => {
+        console.log(`Disconnecting from ${config.dbUrl}`);
+        dbDisconnected = true;
+      });
+
+      // Make sure connection is established before returning the service
+      yield* connect();
+
+      // Add finalizer to ensure disconnection
+      yield* Effect.addFinalizer(() => disconnect());
+
+      return {
+        connect,
+        disconnect,
+        query: (sql: string) => Effect.succeed([`Result for ${sql} from ${config.dbUrl}`])
+      };
+    })
+  );
+
+  // 3. Service implementation depending on other services
+  const UserRepositoryLive = Layer.effect(
+    UserRepository,
+    Effect.gen(function* () {
+      const db = yield* Database;
+
+      return {
+        getUser: (id: string) => 
+          pipe(
+            db.query(`SELECT * FROM users WHERE id = '${id}'`),
+            Effect.map(results => ({ id, name: results[0] || "Unknown" }))
+          ),
+        saveUser: (user) => 
+          pipe(
+            db.query(`INSERT INTO users VALUES ('${user.id}', '${user.name}')`),
+            Effect.map(() => undefined)
+          )
+      };
+    })
+  );
+
+  const ExternalApiClientLive = Layer.effect(
+    ExternalApiClient,
+    Effect.gen(function* () {
+      const config = yield* Config;
+
+      return {
+        enrichUserData: (user) => Effect.succeed({
+          ...user,
+          enriched: true
+        })
+      };
+    })
+  );
+
+  // 4. Composing multiple dependencies
+  const UserServiceLive = Layer.effect(
+    UserService,
+    Effect.gen(function* () {
+      const userRepo = yield* UserRepository;
+      const apiClient = yield* ExternalApiClient;
+
+      return {
+        getUserDetails: (id: string) => 
+          pipe(
+            userRepo.getUser(id),
+            Effect.flatMap(user => apiClient.enrichUserData(user))
+          )
+      };
+    })
+  );
+
+  // 5. Putting it all together with a comprehensive layer
+  const dbLayer = Layer.provide(DatabaseLive, ConfigDev);
+  const repoLayer = Layer.provide(UserRepositoryLive, dbLayer);
+  const apiLayer = Layer.provide(ExternalApiClientLive, ConfigDev);
+  const userServiceDeps = Layer.merge(repoLayer, apiLayer);
+  const userServiceLayer = Layer.provide(UserServiceLive, userServiceDeps);
+  const AppLayerDev = Layer.merge(userServiceLayer, userServiceDeps);
+
+  // Create a program that uses the UserService
+  const program = Effect.gen(function* () {
+    const userService = yield* UserService;
+    const userDetails = yield* userService.getUserDetails("123");
+    console.log("User details:", userDetails);
+    return userDetails;
+  });
+
+  // Run the program with the dev layer configuration
+  const result = await Effect.runPromise(Effect.scoped(
+    program.pipe(Effect.provide(AppLayerDev))
+  ));
+
+  assert(result.id === "123", "Program returned the correct user ID");
+  assert(result.enriched === true, "User data was properly enriched");
+  assert(dbConnected, "Database connection was established");
+  assert(dbDisconnected, "Database connection was properly closed");
+};
+
+const testingWithLayersExample = async () => {
+  console.log("=== Testing with Layers ===");
+
+  // Define a service for a user repository
+  class UserRepository extends Context.Tag("UserRepository")<
+    UserRepository,
+    {
+      readonly getUser: (id: string) => Effect.Effect<{ id: string, name: string } | null>;
+      readonly saveUser: (user: { id: string, name: string }) => Effect.Effect<void>;
+    }
+  >() {}
+
+  // Define a service that uses the repository
+  class UserService extends Context.Tag("UserService")<
+    UserService,
+    {
+      readonly getUserById: (id: string) => Effect.Effect<{ id: string, name: string }, Error>;
+      readonly createUser: (id: string, name: string) => Effect.Effect<void>;
+    }
+  >() {}
+
+  // Implementation of UserService that depends on UserRepository
+  const UserServiceLive = Layer.effect(
+    UserService,
+    Effect.gen(function* () {
+      const repo = yield* UserRepository;
+
+      return {
+        getUserById: (id: string) => 
+          pipe(
+            repo.getUser(id),
+            Effect.flatMap(user => 
+              user ? Effect.succeed(user) : Effect.fail(new Error(`User ${id} not found`))
+            )
+          ),
+        createUser: (id: string, name: string) => 
+          repo.saveUser({ id, name })
+      };
+    })
+  );
+
+  // 1. Create a test implementation with in-memory repository
+  const testUsers: Record<string, { id: string, name: string }> = {
+    "1": { id: "1", name: "Test User" }
+  };
+
+  const UserRepositoryTest = Layer.succeed(
+    UserRepository,
+    {
+      getUser: (id: string) => Effect.succeed(testUsers[id] || null),
+      saveUser: (user) => Effect.sync(() => {
+        testUsers[user.id] = user;
+      })
+    }
+  );
+
+  // 2. Create test cases
+
+  // Test case 1: Get existing user
+  const testGetExistingUser = Effect.gen(function* () {
+    const userService = yield* UserService;
+    const user = yield* userService.getUserById("1");
+
+    assert(user.id === "1", "Retrieved correct user ID");
+    assert(user.name === "Test User", "Retrieved correct user name");
+  });
+
+  // Test case 2: Get non-existent user
+  const testGetNonExistentUser = Effect.gen(function* () {
+    const userService = yield* UserService;
+
+    const result = yield* Effect.either(userService.getUserById("999"));
+
+    assert(result._tag === "Left", "Getting non-existent user returns an error");
+    assert(
+      result._tag === "Left" && result.left.message.includes("not found"), 
+      "Error message indicates user not found"
+    );
+  });
+
+  // Test case 3: Create a new user
+  const testCreateUser = Effect.gen(function* () {
+    const userService = yield* UserService;
+
+    yield* userService.createUser("2", "New User");
+
+    const user = yield* userService.getUserById("2");
+    assert(user.id === "2", "Created user has correct ID");
+    assert(user.name === "New User", "Created user has correct name");
+  });
+
+  // 3. Run the tests with the test layer
+  const testLayer = pipe(UserServiceLive, Layer.provide(UserRepositoryTest));
+
+  await Effect.runPromise(testGetExistingUser.pipe(Effect.provide(testLayer)));
+  await Effect.runPromise(testGetNonExistentUser.pipe(Effect.provide(testLayer)));
+  await Effect.runPromise(testCreateUser.pipe(Effect.provide(testLayer)));
+
+  console.log("All tests passed!");
+};
 
 // === RUN ALL EXAMPLES ===
 const runAll = async () => {
   try {
     await minimalLayerExample();
     await minimalUsefulLayerExample();
-    //await basicLayerExample();
+    await basicLayerExample();
      await layerConstructorsExample();
      await layerCompositionExample();
-    // await scopedLayersExample();
-    // await layerMemoizationExample();
-    // await layerErrorHandlingExample();
-    // await advancedLayersExample();
-    // await testingWithLayersExample();
+     await scopedLayersExample();
+     await layerMemoizationExample();
+     await layerErrorHandlingExample();
+     await advancedLayersExample();
+     await testingWithLayersExample();
 
     console.log("\n✅ All Layer examples completed successfully!");
   } catch (error) {

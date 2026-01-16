@@ -165,7 +165,10 @@ const optionalFieldsExample = () => {
         name: Schema.String,
         description: Schema.optional(Schema.String), // Optional field
         price: Schema.NullOr(Schema.Number), // Can be null
-        tags: Schema.optional(Schema.Array(Schema.String), { default: () => [] }) // Optional with default
+        tags: Schema.Array(Schema.String).pipe(
+            Schema.propertySignature,
+            Schema.withConstructorDefault(() => [])
+        )
     });
 
     type Product = Schema.Schema.Type<typeof ProductSchema>;
@@ -180,7 +183,7 @@ const optionalFieldsExample = () => {
     });
 
     product1; //?
-    assert(product1!.tag!.length === 0, "Default empty array applied");
+    assert(product1!.tags.length === 0, "Default empty array applied");
 
     // Product with all fields
     const product2: Product = parseProduct({
@@ -205,7 +208,7 @@ const arrayRecordExample = () => {
     parseNumberArray([1, 2, 3, 4]); //?
 
     // Record schema (like { [key: string]: number })
-    const ScoresSchema = Schema.Record(Schema.String, Schema.Number);
+    const ScoresSchema = Schema.Record({ key: Schema.String, value: Schema.Number });
     const parseScores = Schema.decodeUnknownSync(ScoresSchema);
 
     const scores = parseScores({
@@ -564,18 +567,18 @@ const compositionExample = () => {
 // === RUN ALL EXAMPLES ===
 const runAll = async () => {
     try {
-        //parsingSchemasToOptionalBrandedTypes(),
-        //basicSchemasExample();
-        //objectSchemasExample();
+        parsingSchemasToOptionalBrandedTypes(),
+        basicSchemasExample();
+        objectSchemasExample();
         formattingEmail();
-        //optionalFieldsExample();
-        //arrayRecordExample();
-        // brandedTypesExample();
-        // transformationsExample();
-        // unionTypesExample();
-        // await errorHandlingExample();
-        // externalDataExample();
-        // compositionExample();
+        optionalFieldsExample();
+        arrayRecordExample();
+        brandedTypesExample();
+        transformationsExample();
+        unionTypesExample();
+        await errorHandlingExample();
+        externalDataExample();
+        compositionExample();
 
         console.log("\n✅ All Schema examples completed!");
     } catch (error) {
