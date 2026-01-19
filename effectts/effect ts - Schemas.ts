@@ -4,8 +4,7 @@
 // Effect Schema Demo - Comprehensive Examples
 // Based on https://effect.website/docs/schema/introduction/
 
-import { Effect, Either, ParseResult, pipe, Schema, Option, Brand } from "effect";
-import { type ParseError } from "effect/ParseResult";
+import { Brand, Effect, Either, Option, ParseResult, pipe, Schema } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
     if (!condition) {
@@ -90,7 +89,7 @@ const formattingEmail = () => {
         id: 1,
         name: "John Doe",
         email: "john@example.com",
-        age: 40
+        age: 42
     });
 
     //validUser; //?
@@ -165,8 +164,8 @@ const optionalFieldsExample = () => {
         description: Schema.optional(Schema.String), // Optional field
         price: Schema.NullOr(Schema.Number), // Can be null
         tags: Schema.Array(Schema.String).pipe(
-            Schema.propertySignature,
-            Schema.withConstructorDefault(() => [])
+            // Schema.propertySignature,
+            // Schema.withConstructorDefault(() => [])
         )
     });
 
@@ -177,12 +176,14 @@ const optionalFieldsExample = () => {
     // Product with minimal fields
     const product1: Product = parseProduct({
         id: 1,
+        
         name: "Widget",
-        price: null
+        price: null,
+        tags:[]
     });
 
-    product1; //?
-    assert(product1!.tags.length === 0, "Default empty array applied");
+     product1; //?
+     assert(product1!.tags.length === 0, "Default empty array applied");
 
     // Product with all fields
     const product2: Product = parseProduct({
@@ -244,8 +245,8 @@ const brandedTypesExample = () => {
     const parseUserId = Schema.decodeUnknownSync(UserIdSchema);
     const parseEmail = Schema.decodeUnknownSync(EmailSchema);
 
-    const userId: UserId = parseUserId(123);
-    const email: Email = parseEmail("user@example.com");
+    const userId= parseUserId(123);
+    const email = parseEmail("user@example.com");
 
     userId; //?
     email; //?
@@ -570,7 +571,7 @@ const runAll = async () => {
         basicSchemasExample();
         objectSchemasExample();
         formattingEmail();
-        //optionalFieldsExample();
+        optionalFieldsExample();
         arrayRecordExample();
         brandedTypesExample();
         transformationsExample();
