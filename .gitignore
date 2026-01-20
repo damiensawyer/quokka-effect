@@ -60,3 +60,4 @@ typings/
 
 .idea
 ./idea/**/*
+.vscode/numbered-bookmarks.json
