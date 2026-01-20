@@ -1,51 +1,6 @@
 {
 	"files": [
 		{
-			"path": "effectts/effect ts - primer.ts",
-			"bookmarks": [
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": 11,
-					"column": 25
-				},
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": -1,
-					"column": 0
-				},
-				{
-					"line": -1,
-					"column": 0
-				}
-			]
-		},
-		{
 			"path": "effectts/effect ts - Layers detailed.ts",
 			"bookmarks": [
 				{
@@ -98,10 +53,18 @@
 					"column": 0
 				},
 				{
-					"line": 655,
+					"line": 658,
 					"column": 5
 				},
 				{
+					"line": 354,
+					"column": 0
+				},
+				{
+					"line": -1,
+					"column": 0
+				},
+				{
 					"line": -1,
 					"column": 0
 				},
@@ -112,6 +75,43 @@
 				{
 					"line": -1,
 					"column": 0
+				},
+				{
+					"line": -1,
+					"column": 0
+				},
+				{
+					"line": -1,
+					"column": 0
+				},
+				{
+					"line": -1,
+					"column": 0
+				}
+			]
+		},
+		{
+			"path": "effectts/effect ts - Branded Types.ts",
+			"bookmarks": [
+				{
+					"line": -1,
+					"column": 0
+				},
+				{
+					"line": -1,
+					"column": 0
+				},
+				{
+					"line": -1,
+					"column": 0
+				},
+				{
+					"line": -1,
+					"column": 0
+				},
+				{
+					"line": 55,
+					"column": 9
 				},
 				{
 					"line": -1,

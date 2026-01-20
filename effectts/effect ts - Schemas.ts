@@ -379,6 +379,9 @@ const transformationsExample = () => {
 	Either.getOrThrow(Schema.encodeUnknownEither(BooleanFromStringWithFail)(true)) //?
 	Either.getOrThrow(Schema.encodeUnknownEither(BooleanFromStringWithFail)(false)) //?
 
+	// Either.getLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad bad bad")) //?
+	// Either.isLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad bad bad")) //?
+
   	 Either.isRight(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy"))  //?
 	 Either.isRight(Schema.decodeUnknownEither(BooleanFromStringWithFail)("sad")) //?
 	 Either.getOrThrow(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy")) //?
