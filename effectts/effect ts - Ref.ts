@@ -1,7 +1,7 @@
 // Scopes Docs https://effect.website/docs/resource-management/scope/
 
 
-import { Effect, Scope, Console, Exit, Equal, SubscriptionRef, Ref, Stream, Random, Fiber, Context } from "effect";
+import { Effect, Scope, Console, Exit, Equal, SubscriptionRef, Ref, Stream, Random, Fiber, Context, SynchronizedRef } from "effect";
 import { ChannelTypeId } from "effect/Channel";
 
 // Enhanced assert function that logs the successful assertion
@@ -31,6 +31,7 @@ const make = Effect.andThen(Ref.make(0), (value) => new Counter(value))
 // === BASIC Ref USAGE ===
 const basicRefExample = async () => {
   const program = Effect.gen(function* () {
+
     const counter = yield* make
     yield* counter.inc
     yield* counter.inc
@@ -42,6 +43,22 @@ const basicRefExample = async () => {
   })
 
   Effect.runPromise(program)
+
+  // better example
+  const concurrentProgram = Effect.gen(function* () {
+    const counter = yield* make
+    // Run 1000 increments at the same time
+    yield* Effect.all(
+      Array.from({ length: 1000 }, () => counter.inc),
+      { concurrency: "unbounded" }
+    )
+
+    const value = yield* counter.get
+    console.log(`Value is: ${value}`) // Guaranteed to be 1000
+  })
+
+  Effect.runPromise(concurrentProgram)
+
 };
 
 
@@ -107,11 +124,11 @@ const refAsService = async () => {
 
   // Compose subprograms 1, 2, and 3 to create the main program
   const program = Effect.gen(function* () {
-    
+
     yield* subprogram1
     yield* subprogram2
     yield* subprogram3
-    
+
   })
 
   // Create a Ref instance with an initial value of 0
@@ -135,15 +152,64 @@ const refStateAcrossFibers = async () => {
 
 
 
+// === syncronized ===
 
+const synchronizedRef = async () => {
+
+  class AsyncCounter {
+    inc: Effect.Effect<void>
+    get: Effect.Effect<number>
+
+    constructor(private value: SynchronizedRef.SynchronizedRef<number>) {
+      this.get = SynchronizedRef.get(this.value)
+
+      // We use updateEffect to perform an Effect during the update
+      this.inc = SynchronizedRef.updateEffect(this.value, (n) =>
+        Effect.gen(function* () {
+          console.log(`Current value is ${n}, saving to DB...`)
+          yield* Effect.sleep("100 millis") // Simulating network latency
+          return n + 1
+        })
+      )
+    }
+  }
+
+
+  const makeAsync = Effect.andThen(
+    SynchronizedRef.make(100),
+    (ref) => new AsyncCounter(ref)
+  )
+  
+
+  const program = Effect.gen(function* () {
+    const counter = yield* makeAsync
+
+    // Start 5 increments at the exact same time
+    yield* Effect.all([
+      counter.inc,
+      counter.inc,
+      counter.inc,
+      counter.inc,
+      counter.inc
+    ], { concurrency: "unbounded" })
+
+    const result = yield* counter.get
+    console.log(`Final Result: ${result}`) // Guaranteed to be 5
+  })
+
+  Effect.runPromise(program)
+
+
+};
 
 
 // Run all examples
 const runAll = async () => {
-  await basicRefExample();
-  await concurrentRefExample();
-  await refAsService();
-  await refStateAcrossFibers()
+  //await basicRefExample();
+  // await concurrentRefExample();
+  // await refAsService();
+  // await refStateAcrossFibers()
+  await synchronizedRef()
 
   console.log("All tests passed successfully!");
 };
