@@ -39,7 +39,9 @@ const firstExample = async () => {
     const client2 = yield* count.changes.pipe(Stream.take(10), Stream.runCollect); // waits until client 1 is finished
     const groupedClients = yield* Effect.all([
       count.changes.pipe(Stream.take(5), Stream.runCollect),
-      count.changes.pipe(Stream.take(5), Stream.runCollect)
+      count.changes.pipe(Stream.take(5), Stream.runCollect),
+      count.changes.pipe(Stream.take(10), Stream.runCollect)
+      
     ], { concurrency: "unbounded" }); // waits until client 2 is finished, but then runs the two clients concurrently
 
     // 4. Cleanup
