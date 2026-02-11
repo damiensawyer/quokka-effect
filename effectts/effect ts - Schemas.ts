@@ -13,14 +13,12 @@ import {
 	pipe,
 	Schema,
 } from "effect";
-import type { ParseError } from "effect/ParseResult";
-import { runSync } from "effect/Runtime";
 
 const assert = (condition: boolean, message?: string) => {
 	if (!condition) {
 		throw new Error(`Assertion failed: ${message}`);
 	}
-	if (!!message) console.log(`✓ ${message}`);
+	if (message) console.log(`✓ ${message}`);
 };
 
 const parsingSchemasToOptionalBrandedTypes = () => {
@@ -83,6 +81,7 @@ const formattingEmail = () => {
 	});
 
 	interface User extends Schema.Schema.Type<typeof UserSchema> {}
+	//type User = Schema.Schema.Type<typeof UserSchema>  // or could also make type... but interface more performant?? See below
 
 	const parseUser = Schema.decodeUnknownSync(UserSchema);
 	// Valid user
@@ -93,24 +92,26 @@ const formattingEmail = () => {
 		age: 42,
 	};
 
-    const invalidUser:User = {
-			id: 1,
-			name: "John Doe",
-			email: "bademail",
-			age: 40,
-		}
+	const invalidUser: User = {
+		id: 1,
+		name: "John Doe",
+		email: "bademail",
+		age: 40,
+	};
 
 	validUser; //?
 	invalidUser; //?
 	const userIsValid = Schema.is(UserSchema);
 	userIsValid(validUser); //?
-    userIsValid(invalidUser); //?
+	userIsValid(invalidUser); //?
 
 	// Invalid user
 	try {
 		parseUser(invalidUser);
-	} catch (e) {
-		console.log("✓ User parsing failed correctly");
+	} catch (e: unknown) {
+		if (ParseResult.isParseError(e)) {
+			console.log("✓ User parsing failed correctly", e.message);
+		}
 	}
 };
 
@@ -148,6 +149,7 @@ const objectSchemasExample = () => {
 		isActive: true,
 	});
 
+	s; //?
 	validUser; //?
 
 	// Invalid user
@@ -159,7 +161,9 @@ const objectSchemasExample = () => {
 			// missing isActive
 		});
 	} catch (e) {
-		console.log("✓ User parsing failed correctly");
+		if (ParseResult.isParseError(e)) {
+			console.log("✓ User parsing failed correctly");
+		}
 	}
 };
 
@@ -192,7 +196,7 @@ const optionalFieldsExample = () => {
 	});
 
 	product1; //?
-	assert(product1!.tags.length === 0, "Default empty array applied");
+	assert(product1.tags.length === 0, "Default empty array applied");
 
 	// Product with all fields
 	const product2: Product = parseProduct({
@@ -203,7 +207,9 @@ const optionalFieldsExample = () => {
 		tags: ["electronics", "gadget"],
 	});
 
-	product2; //?
+	product2.tags.length === 0; //?
+
+	assert(product2.tags.length === 2, "Default empty array applied");
 };
 
 // === ARRAY AND RECORD SCHEMAS ===
@@ -217,20 +223,75 @@ const arrayRecordExample = () => {
 	parseNumberArray([1, 2, 3, 4]); //?
 
 	// Record schema (like { [key: string]: number })
-	const ScoresSchema = Schema.Record({
-		key: Schema.String,
+	// const ScoresSchema = Schema.Record({
+	// 	key: Schema.String,
+	// 	value: Schema.Number,
+	// });
+	// const parseScores = Schema.decodeUnknownSync(ScoresSchema);
+
+	// const scores = parseScores({
+	// 	alice: 95,
+	// 	bob: 87,
+	// 	charlie: 92,
+	// });
+
+	// scores; //?
+
+	// Record Schema with constrainted keys
+
+	// 1. Define your string enum
+	enum Player {
+		Alice = "alice",
+		Bob = "bob",
+		Charlie = "charlie",
+	}
+
+	// 2. Use Schema.Enums() for the key constraint
+	const ScoresSchema2 = Schema.Record({
+		//key: Schema.Enums(Player),
+		key: Schema.Literal("alice", "bob", "charlie"),
 		value: Schema.Number,
 	});
-	const parseScores = Schema.decodeUnknownSync(ScoresSchema);
 
-	const scores = parseScores({
+	//const parseScores2 = Schema.decodeUnknownSync(ScoresSchema2);
+
+	const validScores2 = {
 		alice: 95,
 		bob: 87,
 		charlie: 92,
-	});
+	};
 
-	scores; //?
-	type Scores = Schema.Schema.Type<typeof ScoresSchema>;
+	const invalidScores2 = {
+		alice: 95,
+		bob: 42,
+		//charlie: 92,
+	};
+	const invalidScores3 = {
+		alice: 95,
+		bob: 42,
+		david: 92, // see below... need to do special checking if you want to enforce this as invalid
+	};
+
+	const scoresAreValid2 = Schema.is(ScoresSchema2);
+	scoresAreValid2(validScores2); //?
+	scoresAreValid2(invalidScores2); //?
+	const parseScores2 = Schema.decodeUnknownSync(ScoresSchema2);
+
+	try {
+		parseScores2(validScores2);
+		parseScores2(invalidScores2);
+	} catch (e: unknown) {
+		if (ParseResult.isParseError(e)) {
+			console.log("✓ User parsing failed correctly", e.message);
+		}
+	}
+
+	// If you want to fail david...
+	const OptionalScoresSchema = Schema.partial(ScoresSchema2);
+	const validateStrict = Schema.validateOption(OptionalScoresSchema);
+	Option.isSome(validateStrict(validScores2, { onExcessProperty: "error" })); //?
+	Option.isSome(validateStrict(invalidScores2, { onExcessProperty: "error" })); //?
+	Option.isSome(validateStrict(invalidScores3, { onExcessProperty: "error" })); //?
 };
 
 // === BRANDED TYPES ===
@@ -257,22 +318,22 @@ const brandedTypesExample = () => {
 	const parseUserId = Schema.decodeUnknownSync(UserIdSchema);
 	const parseEmail = Schema.decodeUnknownSync(EmailSchema);
 
-	const userId = parseUserId(123);
-	const email = parseEmail("user@example.com");
-
-	userId; //?
-	email; //?
-
 	try {
+		parseUserId(123); //?
+		parseEmail("user@example.com"); //?
 		parseUserId(-5); // Should fail (not positive)
 	} catch (e) {
-		console.log("✓ Negative UserId rejected");
+		if (ParseResult.isParseError(e)) {
+			console.log("✓ Negative UserId rejected");
+		}
 	}
 
 	try {
 		parseEmail("invalid-email"); // Should fail (bad format)
 	} catch (e) {
-		console.log("✓ Invalid email rejected");
+		if (ParseResult.isParseError(e)) {
+			console.log("✓ Invalid email rejected");
+		}
 	}
 };
 
@@ -319,10 +380,13 @@ const transformationsExample = () => {
 		},
 	);
 
-	const parseTemp = Schema.decodeUnknownSync(TemperatureSchema);
+	const decodeTempToC = Schema.decodeUnknownSync(TemperatureSchema);
 
-	parseTemp({ value: 32, unit: "F" }); //?
-	parseTemp({ value: 0, unit: "C" }); //?
+	decodeTempToC({ value: 32, unit: "F" }); //?
+	decodeTempToC({ value: 0, unit: "C" }); //?
+
+	const encodeTempFromC = Schema.encodeUnknownSync(TemperatureSchema); // Note, we can't convert back to F with this structure
+	encodeTempFromC({ celsius: 32 }); //?
 };
 
 // === UNION TYPES (DISCRIMINATED UNIONS) ===
@@ -335,22 +399,23 @@ const unionTypesExample = () => {
 		Schema.Literal("approved"),
 		Schema.Literal("rejected"),
 	);
+	const positiveNumber = pipe(Schema.Number, Schema.positive())
 
 	// Discriminated union
 	const ShapeSchema = Schema.Union(
 		Schema.Struct({
 			kind: Schema.Literal("circle"),
-			radius: Schema.Number,
+			radius: positiveNumber,
 		}),
 		Schema.Struct({
 			kind: Schema.Literal("rectangle"),
-			width: Schema.Number,
-			height: Schema.Number,
+			width: positiveNumber,
+			height: positiveNumber,
 		}),
 		Schema.Struct({
 			kind: Schema.Literal("triangle"),
-			base: Schema.Number,
-			height: Schema.Number,
+			base: positiveNumber,
+			height: positiveNumber
 		}),
 	);
 
@@ -361,19 +426,35 @@ const unionTypesExample = () => {
 
 	parseStatus("approved"); //?
 
-	const circle: Shape = parseShape({
+	const circle: Shape = {
 		kind: "circle",
 		radius: 5,
-	});
+	};
 
-	const rectangle: Shape = parseShape({
+	const rectangle: Shape = {
 		kind: "rectangle",
 		width: 10,
 		height: 8,
-	});
+	};
 
-	circle; //?
-	rectangle; //?
+	const triangle: Shape = {
+		kind: "triangle",
+		base:-4,
+		height: 8,
+	};
+
+	// circle; //?
+	// rectangle; //?
+	//const parseShape = Schema.decodeUnknownSync(EmailSchema);
+	try {
+		parseShape(circle); //?
+		parseShape(rectangle); //?
+		parseShape(triangle); //?
+	} catch (e) {
+		if (ParseResult.isParseError(e)) {
+			console.log("✓ Invalid shape", e.message);
+		}
+	}
 };
 
 // === ERROR HANDLING WITH EFFECT ===
@@ -579,18 +660,17 @@ const compositionExample = () => {
 // === RUN ALL EXAMPLES ===
 const runAll = async () => {
 	try {
-		parsingSchemasToOptionalBrandedTypes(),
-			//basicSchemasExample();
-			// objectSchemasExample();
-			formattingEmail();
+		// parsingSchemasToOptionalBrandedTypes(), basicSchemasExample();
+		// objectSchemasExample();
+		// formattingEmail();
 		// optionalFieldsExample();
 		// arrayRecordExample();
-		// brandedTypesExample();
-		// transformationsExample();
-		// unionTypesExample();
-		// await errorHandlingExample();
-		// externalDataExample();
-		// compositionExample();
+		brandedTypesExample();
+		transformationsExample();
+		unionTypesExample();
+		await errorHandlingExample();
+		externalDataExample();
+		compositionExample();
 
 		console.log("\n✅ All Schema examples completed!");
 	} catch (error) {
