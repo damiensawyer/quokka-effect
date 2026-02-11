@@ -19,7 +19,7 @@ export const parseWithSchema = <A, I>(
 
 // Basic branded types with nominal
 type UserId = number & Brand.Brand<"UserId">
-const UserId = Brand.nominal<UserId>()
+const UserId = Brand.nominal<UserId>() // https://effect.website/docs/code-style/branded-types/#nominal
 const MyUserIdSchema = Schema.Number.pipe(Schema.fromBrand(UserId))
 Option.isNone(parseWithSchema(MyUserIdSchema, undefined)) //?
 Option.isNone(parseWithSchema(MyUserIdSchema, null)) //?
