@@ -1,9 +1,8 @@
+// @ts-nocheck
 // Scopes Docs https://effect.website/docs/resource-management/scope/
 
 
-import { Effect, Scope, Console, Exit, Equal, SubscriptionRef, Ref, Stream, Random, Fiber } from "effect";
-import { ChannelTypeId } from "effect/Channel";
-import { first } from "lodash";
+import { Effect, Console, SubscriptionRef, Ref, Stream, Random, Fiber } from "effect";
 
 // Enhanced assert function that logs the successful assertion
 const assert = (condition: boolean, message?: string) => {

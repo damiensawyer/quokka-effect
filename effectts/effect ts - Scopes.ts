@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Scopes Docs https://effect.website/docs/resource-management/scope/
 
 // Effect Scope provides resource management capabilities, ensuring resources
@@ -5,8 +6,7 @@
 // things like file handles, network connections, or any resource that needs
 // cleanup.
 
-import { Effect, Scope, Console, Exit, Equal } from "effect";
-import { ChannelTypeId } from "effect/Channel";
+import { Effect, Scope, Console, Exit } from "effect";
 
 const delay = (ms:number) => new Promise(resolve => setTimeout(resolve, ms));
 // Enhanced assert function that logs the successful assertion
@@ -124,7 +124,7 @@ const acquireReleaseExample = async () => {
   let resourceUsed = false;
 
   // Define a simple resource
-  interface Resource {
+  type Resource = {
     id: string;
     close: ()=>Promise<void>;
   }

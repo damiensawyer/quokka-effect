@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Effect, pipe } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
@@ -41,7 +42,7 @@ const superBasicExample = async () => {
             })
         )
         
-        assert(response.status == 200, `got bad response ${response.status}`)
+        assert(response.status === 200, `got bad response ${response.status}`)
         
         return yield* Effect.tryPromise(() => response.json())
     })

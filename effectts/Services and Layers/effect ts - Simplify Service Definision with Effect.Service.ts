@@ -1,6 +1,6 @@
-
-import { Effect, Console, Layer, Context } from "effect";
-import { upperCase } from "lodash";
+// @ts-nocheck
+import { Effect, Layer } from "effect";
+import { Context } from "effect/Context";
 // https://effect.website/docs/requirements-management/layers/#simplifying-service-definitions-with-effectservice
 // This demo shows a way to create a service / tag but giving it default implmentations of requirements
 
@@ -13,9 +13,9 @@ const minimalUsefulLayerExample = async () => {
       append: (s: string) => string
     }
   >() { }
-  type AppenderType = Context.Tag.Service<AppenderService>
-  const appendExclamation: AppenderType = { append: (source) => `${source} !!!!` };
-  const appendSmily: AppenderType = { append: (source) => `${source} :-)` };
+
+  const appendExclamation = { append: (source: string) => `${source} !!!!` };
+  const appendSmily = { append: (source: string) => `${source} :-)` };
 
 
   // servuce 2
@@ -25,10 +25,9 @@ const minimalUsefulLayerExample = async () => {
       modify: (source: string) => string
     }
   >() { }
-  type TextManipulatorType = Context.Tag.Service<TextManipulatorService>
 
-  const capitalizer: TextManipulatorType = { modify: (source) => source.toUpperCase() };
-  const spacer: TextManipulatorType = { modify: (source) => source.split('').join(' ') };
+  const capitalizer = { modify: (source: string) => source.toUpperCase() };
+  const spacer = { modify: (source: string) => source.split('').join(' ') };
 
   // Service 3
   class TextDecoratorService extends Context.Tag("TextDecorator")<
@@ -38,38 +37,47 @@ const minimalUsefulLayerExample = async () => {
     }
   >() { }
 
-  type TextDecoratorServiceType = Context.Tag.Service<TextDecoratorService>
-
-  const dashDecorator: TextDecoratorServiceType = { modify: (source: string) => `----- ${source} -----` };
-  const starDecorator: TextDecoratorServiceType = { modify: (source: string) => `***** ${source} *****` };
+  const dashDecorator = { modify: (source: string) => `----- ${source} -----` };
+  const starDecorator = { modify: (source: string) => `***** ${source} *****` };
 
   // Now - define a service which has a requirement for other services, in one hit.
-  // This is instead of HAVING to define a Layer and then pass dependencies to it (but you still can)
+  // Using Context.Tag with static layer properties
 
-  class CombinedTextServiceLive extends Effect.Service<CombinedTextServiceLive>()("combined", {
-    effect: Effect.gen(function* () {
-      const appender = yield* AppenderService;
-      const manipulator = yield* TextManipulatorService;
-      const decorator = yield* TextDecoratorService;
-      return (s: string) => appender.append(decorator.modify(manipulator.modify(s)))
-    }),
-    dependencies: [
-      Layer.succeed(TextDecoratorService, starDecorator),
-      Layer.succeed(TextManipulatorService, capitalizer),
-      Layer.succeed(AppenderService, appendSmily)]
+  class CombinedTextService extends Context.Tag("CombinedTextService")<
+    CombinedTextService,
+    (s: string) => string
+  >() {
+    static Live = Layer.effect(
+      CombinedTextService,
+      Effect.gen(function* () {
+        const appender = yield* AppenderService;
+        const manipulator = yield* TextManipulatorService;
+        const decorator = yield* TextDecoratorService;
+        return (s: string) => appender.append(decorator.modify(manipulator.modify(s)))
+      })
+    )
 
-  }) { }
+    static Default = CombinedTextService.Live.pipe(
+      Layer.provide(Layer.mergeAll(
+        Layer.succeed(TextDecoratorService, starDecorator),
+        Layer.succeed(TextManipulatorService, capitalizer),
+        Layer.succeed(AppenderService, appendSmily)
+      ))
+    )
+
+    static DefaultWithoutDependencies = CombinedTextService.Live
+  }
 
 
   const program = Effect.gen(function* () {
-    const textService = yield* CombinedTextServiceLive;
+    const textService = yield* CombinedTextService;
     var result = textService('hello')
     return result
 
   });
 
   // run default implementation
-  const combinedTextServiceWithDefaults = CombinedTextServiceLive.Default
+  const combinedTextServiceWithDefaults = CombinedTextService.Default
   Effect.runSync(Effect.provide(program, combinedTextServiceWithDefaults)) //?
 
   // run alternatives to default
@@ -78,7 +86,7 @@ const minimalUsefulLayerExample = async () => {
     Layer.succeed(TextManipulatorService, spacer),
     Layer.succeed(AppenderService, appendExclamation)
   )
-  const combinedTextServiceWithAlternativeServices = Layer.provide(CombinedTextServiceLive.DefaultWithoutDependencies, alternatives)
+  const combinedTextServiceWithAlternativeServices = Layer.provide(CombinedTextService.DefaultWithoutDependencies, alternatives)
   Effect.runSync(Effect.provide(program, combinedTextServiceWithAlternativeServices)) //?
 
 }

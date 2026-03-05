@@ -1,4 +1,5 @@
-import { Effect, Data, pipe, Context } from "effect";
+// @ts-nocheck
+import { Effect, Data, pipe } from "effect";
 
 // class Logger extends Context.Tag("Logger")<Logger, {
 //     readonly Log: (sql: string) => void

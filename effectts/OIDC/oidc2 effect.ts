@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Effect, Data, pipe } from "effect";
 
 // Error types

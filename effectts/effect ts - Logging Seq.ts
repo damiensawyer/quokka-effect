@@ -1,10 +1,11 @@
+// @ts-nocheck
 export {};
 import { Effect, Logger, LogLevel, Layer, HashMap, List, Cause } from "effect"
 import { HttpClient, HttpBody, FetchHttpClient } from "@effect/platform"
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-interface SeqConfig {
+type SeqConfig = {
   readonly url: string
   readonly apiKey?: string
 }

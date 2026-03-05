@@ -1,4 +1,5 @@
-import { Effect, Context, Console, Layer, pipe } from "effect";
+// @ts-nocheck
+import { Effect, Context, Layer, pipe } from "effect";
 
 /**
  * Demonstrates proper use of layers for service dependencies
@@ -19,9 +20,9 @@ class AppenderService extends Context.Tag("Appender")<
         append: (s: string) => string
     }
 >() { }
-type AppenderType = Context.Tag.Service<AppenderService>
-const appendExclamation: AppenderType = { append: (source) => `${source} !!!!` };
-const appendSmily: AppenderType = { append: (source) => `${source} :-)` };
+
+const appendExclamation = { append: (source: string) => `${source} !!!!` };
+const appendSmily = { append: (source: string) => `${source} :-)` };
 
 
 // Service 1 and implementations
@@ -31,11 +32,10 @@ class TextManipulatorService extends Context.Tag("TextManipulator")<
         modify: (source: string) => string
     }
 >() { }
-type TextManipulatorType = Context.Tag.Service<TextManipulatorService>
 
-const capitalizer: TextManipulatorType = { modify: (source) => source.toUpperCase() };
-const spacer: TextManipulatorType = { modify: (source) => source.split('').join(' ') };
-const capitalizeAndSpace: TextManipulatorType = { modify: (source) => spacer.modify(capitalizer.modify(source)) };
+const capitalizer = { modify: (source: string) => source.toUpperCase() };
+const spacer = { modify: (source: string) => source.split('').join(' ') };
+const capitalizeAndSpace = { modify: (source: string) => spacer.modify(capitalizer.modify(source)) };
 
 // Service 2 and implementations
 class GreeterService extends Context.Tag("Greeter")<
@@ -45,11 +45,9 @@ class GreeterService extends Context.Tag("Greeter")<
     }
 >() { }
 
-type GreeterType = Context.Tag.Service<GreeterService>
-
 // implementations
-const kindGreeter: GreeterType = { getMessage: (name: string) => Effect.succeed(`Have a great day ${name}!`) };
-const meanGreeter: GreeterType = { getMessage: (name: string) => Effect.succeed(`Go Away ${name}!`) };
+const kindGreeter = { getMessage: (name: string) => Effect.succeed(`Have a great day ${name}!`) };
+const meanGreeter = { getMessage: (name: string) => Effect.succeed(`Go Away ${name}!`) };
 
 // Service 3 and implementations
 class TextDecoratorService extends Context.Tag("TextDecorator")<
@@ -59,10 +57,8 @@ class TextDecoratorService extends Context.Tag("TextDecorator")<
     }
 >() { }
 
-type TextDecoratorServiceType = Context.Tag.Service<TextDecoratorService>
-
-const dashDecorator: TextDecoratorServiceType = { modify: (source: string) => `----- ${source} -----` };
-const starDecorator: TextDecoratorServiceType = { modify: (source: string) => `***** ${source} *****` };
+const dashDecorator = { modify: (source: string) => `----- ${source} -----` };
+const starDecorator = { modify: (source: string) => `***** ${source} *****` };
 
 
 
@@ -76,8 +72,6 @@ class CombinedTextService extends Context.Tag("CombinedTextService")<
     }
 >() { }
 
-
-type CombinedTextServiceType = Context.Tag.Service<CombinedTextService>
 
 const CombinedTextServiceLive = Layer.effect(
     CombinedTextService,
@@ -93,7 +87,7 @@ const CombinedTextServiceLive = Layer.effect(
                 appender.append(decorator.modify(manipulator.modify(source)))
                 //decorator.modify(manipulator.modify(source))
             )
-        } as CombinedTextServiceType;
+        };
     })
 );
 

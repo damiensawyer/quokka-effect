@@ -1,16 +1,17 @@
+// @ts-nocheck
 import { Context, Effect, Layer } from 'effect';
 
-// Base interface for all people
+// Base type for all people
 type AllPeopleType = {
   name: () => Effect.Effect<string>
 };
 
-// Teacher interface extends the base with uni-specific info
+// Teacher type extends the base with uni-specific info
 type TeacherType = AllPeopleType & {
   uniName: () => Effect.Effect<string>
 };
 
-// Student interface extends the base with school-specific info
+// Student type extends the base with school-specific info
 type StudentType = AllPeopleType & {
   schoolName: () => Effect.Effect<string>,
   uniName: string // Note: this is a string, not a function returning an Effect

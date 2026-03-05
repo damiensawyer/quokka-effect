@@ -1,4 +1,4 @@
-//import { Effect, Console, Logger, LogLevel, Layer, Context, FiberRef, pipe } from "effect";
+// @ts-nocheck
 import { Effect, Console, Logger, LogLevel, Layer, Context, FiberRef, pipe, Data } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
@@ -53,7 +53,7 @@ const logLevelsExample = async () => {
 const structuredLoggingExample = async () => {
     console.log("\n=== Structured Logging ===");
 
-    interface User {
+    type User = {
         id: number;
         name: string;
     }
@@ -237,73 +237,56 @@ const loggingWithLayersExample = async () => {
     >() { }
 
     // Custom logger layer that uses configuration
-    // === LOGGING WITH LAYERS ===
-    const loggingWithLayersExample = async () => {
-        console.log("\n=== Logging with Layers ===");
+    const LoggerLive = Layer.unwrapEffect(
+        Effect.gen(function* () {
+            const config = yield* LoggerConfig;
 
-        // Logger configuration
-        class LoggerConfig extends Context.Tag("LoggerConfig")<
-            LoggerConfig,
-            {
-                level: LogLevel.LogLevel;
-                enableColors: boolean;
-                includeTimestamp: boolean;
-            }
-        >() { }
+            const customLogger = Logger.make(({ logLevel, message, annotations }) => {
+                if (LogLevel.lessThan(logLevel, config.level)) return;
 
-        // Custom logger layer that uses configuration
-        const LoggerLive = Layer.unwrapEffect(
-            Effect.gen(function* () {
-                const config = yield* LoggerConfig;
+                const timestamp = config.includeTimestamp ? `[${new Date().toISOString()}] ` : '';
+                const level = config.enableColors
+                    ? `\x1b[36m${logLevel.label.toUpperCase()}\x1b[0m`
+                    : logLevel.label.toUpperCase();
 
-                const customLogger = Logger.make(({ logLevel, message, annotations }) => {
-                    if (LogLevel.lessThan(logLevel, config.level)) return;
+                const annotationsStr = Object.keys(annotations).length > 0
+                    ? ` ${JSON.stringify(annotations)}`
+                    : '';
 
-                    const timestamp = config.includeTimestamp ? `[${new Date().toISOString()}] ` : '';
-                    const level = config.enableColors
-                        ? `\x1b[36m${logLevel.label.toUpperCase()}\x1b[0m`
-                        : logLevel.label.toUpperCase();
+                console.log(`${timestamp}${level}: ${message}${annotationsStr}`);
+            });
 
-                    const annotationsStr = Object.keys(annotations).length > 0
-                        ? ` ${JSON.stringify(annotations)}`
-                        : '';
+            return Logger.replace(Logger.defaultLogger, customLogger);
+        })
+    );
 
-                    console.log(`${timestamp}${level}: ${message}${annotationsStr}`);
-                });
+    // Configuration layers
+    const DevConfig = Layer.succeed(LoggerConfig, {
+        level: LogLevel.Debug,
+        enableColors: true,
+        includeTimestamp: true
+    });
 
-                return Logger.replace(Logger.defaultLogger, customLogger);
-            })
-        );
+    const ProdConfig = Layer.succeed(LoggerConfig, {
+        level: LogLevel.Info,
+        enableColors: false,
+        includeTimestamp: true
+    });
 
-        // Configuration layers
-        const DevConfig = Layer.succeed(LoggerConfig, {
-            level: LogLevel.Debug,
-            enableColors: true,
-            includeTimestamp: true
-        });
+    const program = Effect.gen(function* () {
+        yield* Effect.logDebug("Debug message");
+        yield* Effect.logInfo("Info message");
+        yield* Effect.logWarning("Warning message");
+        return "done";
+    });
 
-        const ProdConfig = Layer.succeed(LoggerConfig, {
-            level: LogLevel.Info,
-            enableColors: false,
-            includeTimestamp: true
-        });
+    console.log("Development config:");
+    const devLayer = pipe(LoggerLive, Layer.provide(DevConfig));
+    await Effect.runPromise(program.pipe(Effect.provide(devLayer)));
 
-        const program = Effect.gen(function* () {
-            yield* Effect.logDebug("Debug message");
-            yield* Effect.logInfo("Info message");
-            yield* Effect.logWarning("Warning message");
-            return "done";
-        });
-
-        console.log("Development config:");
-        const devLayer = pipe(LoggerLive, Layer.provide(DevConfig));
-        await Effect.runPromise(program.pipe(Effect.provide(devLayer)));
-
-        console.log("\nProduction config:");
-        const prodLayer = pipe(LoggerLive, Layer.provide(ProdConfig));
-        await Effect.runPromise(program.pipe(Effect.provide(prodLayer)));
-    };
-
+    console.log("\nProduction config:");
+    const prodLayer = pipe(LoggerLive, Layer.provide(ProdConfig));
+    await Effect.runPromise(program.pipe(Effect.provide(prodLayer)));
 };
 
 

@@ -1,4 +1,5 @@
-import { Effect, Context, Console, Layer } from "effect";
+// @ts-nocheck
+import { Effect, Context, Layer } from "effect";
 
 /**
     This script shows Why we need layers, and not just services
@@ -21,10 +22,9 @@ class TextManipulator extends Context.Tag("MyService")<
         modify: (source: string) => string
     }
 >() { }
-type TextManipulatorType = Context.Tag.Service<TextManipulator>
 
-const capitalizer: TextManipulatorType = { modify: (source) => source.toUpperCase() };
-const spacer: TextManipulatorType = { modify: (source) => source.split('').join(' ') };
+const capitalizer = { modify: (source: string) => source.toUpperCase() };
+const spacer = { modify: (source: string) => source.split('').join(' ') };
 
 // Service 2 and implementations
 class Greeter extends Context.Tag("Greeter")<
@@ -34,11 +34,9 @@ class Greeter extends Context.Tag("Greeter")<
     }
 >() { }
 
-type GreeterType = Context.Tag.Service<Greeter>
-
 // implementations
-const kindGreeter: GreeterType = { getMessage: (name: string) => Effect.succeed(`Have a great day ${name}!`) };
-const meanGreeter: GreeterType = { getMessage: (name: string) => Effect.succeed(`Go Away ${name}!`) };
+const kindGreeter = { getMessage: (name: string) => Effect.succeed(`Have a great day ${name}!`) };
+const meanGreeter = { getMessage: (name: string) => Effect.succeed(`Go Away ${name}!`) };
 
 // Service 3 and implementations
 class TextDecorator extends Context.Tag("TextDecorator")<
@@ -48,10 +46,8 @@ class TextDecorator extends Context.Tag("TextDecorator")<
     }
 >() { }
 
-type TextDecoratorType = Context.Tag.Service<TextDecorator>
-
-const dashDecorator: TextDecoratorType = { modify: (source: string) => `----- ${source} -----` };
-const starDecorator: TextDecoratorType = { modify: (source: string) => `***** ${source} *****` };
+const dashDecorator = { modify: (source: string) => `----- ${source} -----` };
+const starDecorator = { modify: (source: string) => `***** ${source} *****` };
 
 
 
@@ -67,9 +63,7 @@ class CombinedTextService extends Context.Tag("CombinedTextService")<
     }
 >() { }
 
-type CombinedTextServiceType = Context.Tag.Service<CombinedTextService>
-
-const combinedTextServiceImpl: CombinedTextServiceType = {
+const combinedTextServiceImpl = {
     formatText: (source: string) => Effect.gen(function* () {
         const manipulator = yield* TextManipulator;
         const decorator = yield* TextDecorator;

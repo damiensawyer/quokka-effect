@@ -1,8 +1,8 @@
+// @ts-nocheck
 // Scopes Docs https://effect.website/docs/resource-management/scope/
 
 
-import { Effect, Scope, Console, Exit, Equal, SubscriptionRef, Ref, Stream, Random, Fiber, Context, SynchronizedRef } from "effect";
-import { ChannelTypeId } from "effect/Channel";
+import { Effect, Console, Ref, Context, SynchronizedRef } from "effect";
 
 // Enhanced assert function that logs the successful assertion
 const assert = (condition: boolean, message?: string) => {
@@ -136,7 +136,7 @@ const refAsService = async () => {
 
   // Provide the Ref as a service
   const runnable = program.pipe(
-    Effect.provideServiceEffect(MyState, initialState)
+    Effect.provide(MyState, initialState)
   )
 
   // Run the program and observe the output

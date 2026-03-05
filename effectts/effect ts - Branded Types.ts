@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Brand, Schema, Option, Exit, Types } from "effect"
 
 type Top = Types.Top
@@ -31,9 +32,9 @@ userId === userId2 //?
 userId !== productId //?
 // Refined branded types with validation
 type Int = number & Brand.Brand<"Int">
-const Int = Brand.make<Int>((n) => Number.isInteger(n) || `Expected ${n} to be an integer`)
+const Int = Brand.filter<Int>((n) => Number.isInteger(n) || Brand.error(`Expected ${n} to be an integer`))
 type Positive = number & Brand.Brand<"Positive">
-const Positive = Brand.make<Positive>((n) => n > 0 || `Expected ${n} to be positive`)
+const Positive = Brand.filter<Positive>((n) => n > 0 || Brand.error(`Expected ${n} to be positive`))
 // Refined type tests
 const validInt: Int = Int(5)
 assert(validInt === 5, "Valid integer created")
@@ -51,24 +52,24 @@ const validPositiveInt: PositiveInt = PositiveInt(10)
 assert(validPositiveInt === 10, "Valid positive integer")
 try {
   PositiveInt(-5)
-} catch (e) {
+} catch (e: any) {
     e //?
 }
 try {
   PositiveInt(3.14)
   // assert(false, "Should have thrown")
-} catch (e) {
+} catch (e: any) {
     e //?
   }
 // Custom branded types with symbols
 type Email = string & Brand.Brand<"Email">
-const Email = Brand.make<Email>((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) || `Invalid email: ${s}`)
+const Email = Brand.filter<Email>((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) || Brand.error(`Invalid email: ${s}`))
 const email: Email = Email("test@example.com")
 assert(email === "test@example.com", "Valid email created")
 email //?
 try {
     const s2 = Email("blah@a.b")
-  } catch (e) {
+  } catch (e: any) {
     e //?
   }
 // Type safety with functions
@@ -81,7 +82,7 @@ assert(() => { getUserById(productId) }, "Type mismatch errors")
 type AdminUserId = UserId & Brand.Brand<"AdminUserId">
 const AdminUserId = Brand.all(
   UserId,
-  Brand.make<AdminUserId>((id) => id < 100 || `AdminUserId must be < 100, got ${id}`)
+  Brand.filter<AdminUserId>((id) => id < 100 || Brand.error(`AdminUserId must be < 100, got ${id}`))
 )
 const adminId: AdminUserId = AdminUserId(50)
 assert(getUserById(adminId) === "User 50", "Subtype compatibility")

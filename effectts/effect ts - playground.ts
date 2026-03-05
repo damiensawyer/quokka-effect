@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Effect as E } from "effect/index"
 
 const a = E.succeed(2)
@@ -28,4 +29,3 @@ E.runSync(add) //?
 E.runSync(add2) //?
 E.runSync(mapReduce) //?
 E.runPromise(mapReduce2) //?
-

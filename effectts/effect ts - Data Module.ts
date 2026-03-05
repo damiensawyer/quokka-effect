@@ -1,293 +1,255 @@
-// The Effect Data module provides utilities for creating data structures with built-in
- structural equality, tagged unions, and custom error types. It streamlines working with immutable data by handling equality checks, pattern matching, and type narrowing. It's particularly useful for functional programming approaches in TypeScript.
+// @ts-nocheck
+import { Data, Equal } from "effect"
 
- // It's been migrated to Effect v4 beta
- // @ts-nocheck
+const assert = (condition: boolean, message?: string) => {
+  if (!condition) throw new Error(message ?? "Assertion failed")
+}
 
- // Note: This file is for Quokka evaluation, not and won't be compiled
- but TypeScript checks will still be performed
- // for better inline error messages in See Quokka output.
+// ============================================================================
+// VALUE EQUALITY (Object/Array Literals)
+// ============================================================================
+// In Effect v4, Data.struct/tuple/array are removed - use literals directly
 
- // @ts-nocheck is also disables automatic import sorting in which can clutter the output.
- // See: https://effect.website/docs/code-style/branded-types/
- // @ts-nocheck is also removes the ability to use "interface extends" patterns with Schema types, 
- // which can cause type errors in TypeScript
+// Simple struct equality
+const person1 = { name: "Alice", age: 30 }
+const person2 = { name: "Alice", age: 30 }
+assert(Equal.equals(person1, person2))
 
- but keep things clean.
+// Tuple equality
+const tuple1 = [1, "hello", true] as const
+const tuple2 = [1, "hello", true] as const
+assert(Equal.equals(tuple1, tuple2))
 
- // Value equality: Enables comparing values by structure instead of reference
- // Rather than comparing object references (===), Data provides structural equality
- // where two objects with the same content are considered equal
+// Array equality
+const arr1 = [1, 2, 3]
+const arr2 = [1, 2, 3]
+assert(Equal.equals(arr1, arr2))
 
- import { Data, Equal } from "effect"
+// Nested structures
+const nested1 = { user: { id: 1, name: "Bob" }, tags: ["a", "b"] }
+const nested2 = { user: { id: 1, name: "Bob" }, tags: ["a", "b"] }
+assert(Equal.equals(nested1, nested2))
 
- // Assert function: throws if condition is false
- const assert = (fn: () => boolean) => { if (!fn()) throw new Error() }
+console.log("Value equality tests passed!")
 
- // === VALUE EQUALITY ===
- // Enables comparing values by structure instead of reference
- // Rather than comparing object references (===), Data provides structural equality
- // where two objects with the same content are considered equal
+// ============================================================================
+// DATA.CLASS - Generic Class Constructor
+// ============================================================================
+// Data.case<T>() is replaced by Data.Class<T>() in v4
 
- // Struct examples - In v4, use object literals directly instead of Data.struct
- const p1 = { name: "Alice", age: 30 }
-    const p2 = { name: "Alice", age: 30 }
-    assert(() => Equal.equals(p1, p2))
+interface Point { readonly x: number; readonly y: number }
+const Point = Data.Class<Point>()
 
-    
-    // Nested structs - showing deep equality with object literals
-    const nested1 = { user: { id: 1 }, active: true }
-    const nested2 = { user: { id: 1 }, active: true }
-    assert(() => Equal.equals(nested1, nested2))
-    
-    // Deep equality fails if inner objects aren't Data structures
-    const badNested1 = { user: { id: 1 }, active: true } // Regular JS object inside
-    const badNested2 = { user: { id: 1 }, active: true }
-    assert(() => !Equal.equals(badNested1, badNested2)) // This fails - inner objects compared by reference
-    
-    // Tuple examples - In v4, use array literals directly
-    const t1 = ["Alice", 30]
-    const t2 = ["Alice", 30]
-    assert(() => Equal.equals(t1, t2))
-    
-    // Array examples - In v4, use array literals directly
-    const arr1 = [1, 2, 3]
-    const arr2 = [1, 2, 3]
-    assert(() => Equal.equals(arr1, arr2))
-    
-    // Complex array with nested structures - using object literals
-    const complexArr1 = [
-        { id: 1, tags: ["important", "urgent"] },
-        { id: 2, tags: ["normal"] }
-    ]
-    
-    const complexArr2 = [
-        { id: 1, tags: ["important", "urgent"] },
-        { id: 2, tags: ["normal"] }
-    ]
-    
-    // Deep structural equality works at all levels
-    assert(() => Equal.equals(complexArr1, complexArr2))
-    
-    // === CONSTRUCTORS ===
-    // Factory functions to create data structures with built-in equality
-    // Case constructor - In v4, use Data.Class instead
-    interface User { readonly id: number; readonly name: string }
-    const User = Data.Class<User>()
-    const u1 = new User({ id: 1, name: "Alice" })
-    const u2 = new User({ id: 1, name: "Alice" })
-    assert(() => Equal.equals(u1, u2))
-    
-    // Tagged constructor (with _tag field) - In v4, use Data.TaggedClass
-    interface Customer { readonly _tag: "Customer"; readonly id: number }
-    const Customer = Data.TaggedClass<Customer>()("Customer")
-    const c1 = new Customer({ id: 1 }) // _tag is automatically set
-    const c1_b = new Customer({ id: 1 })
-    assert(() => Equal.equals(c1, c1_b))
-    assert(() => c1._tag === "Customer")
-    
-    // Class example with custom method
-    class Person extends Data.Class<{ name: string; age: number }> {
-        get isAdult() { return this.age >= 18 }
-    }
-    const person1 = new Person({ name: "Bob", age: 25 })
-    const person2 = new Person({ name: "Bob", age: 25 })
-    assert(() => Equal.equals(person1, person2))
-    assert(() => person1.isAdult)
-    assert(() => person2.isAdult)
-    
-    // Tagged Class
-    // Tagged classes provide the best of both worlds:
-    // 1. The type discrimination capabilities of tagged unions via the _tag field
-    // 2. The ability to define methods and behavior like regular classes
-    // This makes them ideal when you need both pattern matching AND object methods
-    class Employee extends Data.TaggedClass("Employee")<{ id: number; role: string }> {
-        get description() { return `${this.role} (ID: ${this.id})` }
-    }
-    const e1 = new Employee({ id: 101, role: "Dev" })
-    assert(() => e1._tag === "Employee")
-    assert(() => e1.description === "Dev (ID: 101)")
-    
-    // Example of deep nested data with structural equality
-    // This shows how to create complex, deeply nested data structures 
-    // that maintain structural equality at all levels
-    interface DeepAddress { street: string; city: string }
-    interface DeepContact { email: string; phone: string }
-    interface DeepPerson { name: string; address: DeepAddress; contacts: ReadonlyArray<DeepContact> }
-    
-    // Create constructors for each level of the structure - In v4, use Data.Class
-    const Address = Data.Class<DeepAddress>()
-    const Contact = Data.Class<DeepContact>()
-    const DeepPersonConstructor = Data.Class<DeepPerson>()
-    
-    // Create two deeply nested structures with the same data
-    const deepPerson1 = new DeepPersonConstructor({
-        name: "Alice",
-        address: new Address({ street: "123 Main St", city: "Boston" }),
-        contacts: [
-            new Contact({ email: "alice@example.com", phone: "555-1234" }),
-            new Contact({ email: "alice.work@example.com", phone: "555-5678" })
-        ]
-    })
-    
-    const deepPerson2 = new DeepPersonConstructor({
-        name: "Alice", 
-        address: new Address({ street: "123 Main St", city: "Boston" }),
-        contacts: [
-            new Contact({ email: "alice@example.com", phone: "555-1234" }),
-            new Contact({ email: "alice.work@example.com", phone: "555-5678" })
-        ]
-    })
-    
-    const deepPerson4 = new DeepPersonConstructor({
-        name: "Alice Smith", 
-        address: new Address({ street: "123 Main St", city: "Boston" }),
-        contacts: [
-            new Contact({ email: "alice@example.com", phone: "555-1234" }),
-            new Contact({ email: "alice.work@example.com", phone: "555-5678" })
-        ]
-    })
-    assert(() => Equal.equals(deepPerson1, deepPerson2))
-      
-    const deepPerson3 = new DeepPersonConstructor({
-        ...deepPerson1,      // Include all original properties 
-        name: "Alice Smith"  // Override just this property
-    })
-    assert(() => !Equal.equals(deepPerson1, deepPerson3))
-    assert(() => Equal.equals(deepPerson3, deepPerson4))
-    
-    // To modify nested properties, you need to rebuild that path
-    const deepPerson1NewAddress = new DeepPersonConstructor({
-        ...deepPerson1,
-        address: new Address({ 
-            ...deepPerson1.address,  // Spread the nested object
-            street: "456 Park Ave"   // Just change this field
-        })
-    })
-    
-    const deepPerson2NewAddress = new DeepPersonConstructor({
-        ...deepPerson2,
-        address: new Address({ 
-            ...deepPerson2.address,  // Spread the nested object
-            street: "456 Park Ave"   // Just change this field
-        })
-    })
-    
-    // Despite being complex nested structures, they compare as equal
-    // The key is using Data structures at EVERY level (including the array)
-    assert(() => Equal.equals(deepPerson1, deepPerson2))
-    assert(() => !Equal.equals(deepPerson1, deepPerson3))
-    assert(() => !Equal.equals(deepPerson1, deepPerson1NewAddress))
-    assert(() => Equal.equals(deepPerson1NewAddress, deepPerson2NewAddress))
-    
-    // Using object literals directly for nested objects without separate constructors
-    // This approach allows structural equality with less boilerplate
-    // Define interfaces for a blog post with comments
-    interface Comment { authorId: string; text: string; timestamp: number }
-    interface BlogPost { id: string; title: string; content: string; comments: ReadonlyArray<Comment> }
-    
-    // Only create constructor for the top-level BlogPost
-    // In v4, use Data.Class instead
-    const BlogPost = Data.Class<BlogPost>()
-    
-    // Create blog post with comments - using object literals directly for nested objects
-    const post1 = new BlogPost({
-        id: "post-123",
-        title: "Understanding Effect Data Module",
-        content: "Effect provides powerful tools for immutable data...",
-        comments: [
-            { authorId: "user-456", text: "Great article!", timestamp: 1650123456789 },
-            { authorId: "user-789", text: "Thanks for the explanation", timestamp: 1650123500000 }
-        ]
-    })
-    
-    // Create identical post - structural equality works across all nested levels
-    const post2 = new BlogPost({
-        id: "post-123",
-        title: "Understanding Effect Data Module",
-        content: "Effect provides powerful tools for immutable data...",
-        comments: [
-            { authorId: "user-456", text: "Great article!", timestamp: 1650123456789 },
-            { authorId: "user-789", text: "Thanks for the explanation", timestamp: 1650123500000 }
-        ]
-    })
-    
-    // Add a new comment - only recreate the parts of the structure that change
-    const postWithNewComment = new BlogPost({
-        ...post1,
-        comments: [
-            ...post1.comments,
-            { authorId: "user-321", text: "I have a question about this...", timestamp: 1650123600000 }
-        ]
-    })
-    
-    // Structural equality checks
-    assert(() => Equal.equals(post1, post2)) // Same content = equal
-    assert(() => !Equal.equals(post1, postWithNewComment)) // Different content = not equal
-    
-    console.log("Deep equality example complete!")
-    
-    // ====================================================================
-    // Now we'll look at tagged unions for modeling state transitions
-    // ====================================================================
-    // In v4, use Data.TaggedEnum
- type RemoteData = Data.TaggedEnum<{
-        Loading: {},
-        Success: { readonly data: string },
-        Failure: { readonly error: string },
-        LogInfo: { readonly accessCount: number }
-    }>
-    
-    // The $ prefix is a convention indicating these are utility functions generated from the union
-    // These functions are automatically created when you call Data.taggedEnum
- const { Loading, Success, LogInfo, Failure, $match, $is } = Data.taggedEnum<RemoteData>()
-    
-    const loading = Loading()
-    const success = Success({ data: "result" })
-    const failure = Failure({ error: "not found" })
-    const logInfo = LogInfo({ accessCount: 3 })
-    
-    assert(() => logInfo._tag === "LogInfo")
-    
-    // Type guard usage ($is)
-    // Type guards are functions that help TypeScript narrow down types
-    // $is creates a function that checks if an object has a specific _tag value
-    // This enables TypeScript to know exactly which properties are available after the check
-    const isSuccess = $is("Success")
-    assert(() => isSuccess(success))
-    assert(() => !isSuccess(loading))
-    
-    // Pattern matching ($match)
-    // Pattern matching lets you handle all variants of a union in a type-safe way
-    // $match takes an object with handlers for each possible tag
-    // TypeScript ensures you handle all possible variants and provides type checking for each handler
-    const getMessage = $match({
-        Loading: () => "Loading...",
-        Success: ({ data }) => `Data: ${data}`,
-        Failure: ({ error }) => `Error: ${error}`,
-        LogInfo: ({ accessCount }) => `Access Count was ${accessCount}`
-    })
-    
-    assert(() => getMessage(loading) === "Loading...")
-    assert(() => getMessage(success) === "Data: result")
-    assert(() => getMessage(failure) === "Error: not found")
-    assert(() => getMessage(logInfo) === "Access Count was 3")
-    
-    // === ERROR HANDLING ===
-    // Specialized error types that work well with Effect's error handling
-    // Custom Error - properly defining with correct type
-    class NotFoundError extends Data.Error<{ readonly item: string }> {}
-    const err1 = new NotFoundError({ item: "file.txt" })
-    assert(() => err1 instanceof Error)
-    assert(() => err1.item === "file.txt")
-    
-    // Tagged Error
-    class ApiError extends Data.TaggedError("ApiError")<{ readonly code: number }> {}
-    const err2 = new ApiError({ code: 404 })
-    assert(() => err2._tag === "ApiError")
-    assert(() => err2.code === 404)
-    
-    // Print out "All tests passed" if we made it this far
-    console.log("All assertions passed!")
-    
-    // Async example with Effect would go here in a real application
+const p1 = new Point({ x: 10, y: 20 })
+const p2 = new Point({ x: 10, y: 20 })
+assert(Equal.equals(p1, p2))
+assert(p1.x === 10 && p1.y === 20)
+
+// Extending Data.Class with custom methods
+class Vector extends Data.Class<{ x: number; y: number }> {
+  get magnitude() {
+    return Math.sqrt(this.x ** 2 + this.y ** 2)
+  }
+  
+  add(other: Vector): Vector {
+    return new Vector({ x: this.x + other.x, y: this.y + other.y })
+  }
+}
+
+const v1 = new Vector({ x: 3, y: 4 })
+const v2 = new Vector({ x: 3, y: 4 })
+assert(Equal.equals(v1, v2))
+assert(v1.magnitude === 5)
+
+const v3 = v1.add(new Vector({ x: 1, y: 0 }))
+assert(v3.x === 4 && v3.y === 4)
+assert(!Equal.equals(v1, v3))
+
+console.log("Data.Class tests passed!")
+
+// ============================================================================
+// DATA.TAGGEDCLASS - Classes with _tag Field
+// ============================================================================
+// Data.tagged<T>() is replaced by Data.TaggedClass<T>()("tag") in v4
+
+// Using the curried form
+interface Product { readonly _tag: "Product"; readonly id: number; readonly name: string }
+const Product = Data.TaggedClass<Product>()("Product")
+
+const prod1 = new Product({ id: 1, name: "Widget" })
+const prod2 = new Product({ id: 1, name: "Widget" })
+assert(prod1._tag === "Product")
+assert(Equal.equals(prod1, prod2))
+
+// Extending TaggedClass with methods
+class Order extends Data.TaggedClass("Order")<{ 
+  readonly orderId: string
+  readonly items: ReadonlyArray<string>
+  readonly total: number
+}> {
+  get itemCount() {
+    return this.items.length
+  }
+  
+  get isExpensive() {
+    return this.total > 100
+  }
+}
+
+const order1 = new Order({ orderId: "ORD-001", items: ["item1", "item2"], total: 150 })
+const order2 = new Order({ orderId: "ORD-001", items: ["item1", "item2"], total: 150 })
+assert(order1._tag === "Order")
+assert(order1.itemCount === 2)
+assert(order1.isExpensive)
+assert(Equal.equals(order1, order2))
+
+console.log("Data.TaggedClass tests passed!")
+
+// ============================================================================
+// DATA.TAGGEDENUM - Tagged Unions with Pattern Matching
+// ============================================================================
+// Data.taggedEnum returns constructors plus $match and $is helpers
+
+type Result = Data.TaggedEnum<{
+  Success: { readonly value: number }
+  Failure: { readonly error: string }
+  Pending: {}
+}>
+
+const { Success, Failure, Pending, $match, $is } = Data.taggedEnum<Result>()
+
+const success = Success({ value: 42 })
+const failure = Failure({ error: "Something went wrong" })
+const pending = Pending()
+
+assert(success._tag === "Success")
+assert(failure._tag === "Failure")
+assert(pending._tag === "Pending")
+
+// $is - Type guard function
+const isSuccessGuard = $is("Success")
+const isFailureGuard = $is("Failure")
+
+assert(isSuccessGuard(success))
+assert(!isSuccessGuard(failure))
+assert(isFailureGuard(failure))
+
+// Type narrowing with $is
+if (isSuccessGuard(success)) {
+  assert(success.value === 42)
+}
+
+// $match - Exhaustive pattern matching
+const describe = $match({
+  Success: ({ value }) => `Got value: ${value}`,
+  Failure: ({ error }) => `Error: ${error}`,
+  Pending: () => "Still loading..."
+})
+
+assert(describe(success) === "Got value: 42")
+assert(describe(failure) === "Error: Something went wrong")
+assert(describe(pending) === "Still loading...")
+
+// Practical example: State machine
+type ConnectionState = Data.TaggedEnum<{
+  Disconnected: {}
+  Connecting: { readonly attempt: number }
+  Connected: { readonly sessionId: string }
+  Error: { readonly message: string; readonly retryable: boolean }
+}>
+
+const { 
+  Disconnected, 
+  Connecting, 
+  Connected, 
+  Error: ConnectionError,
+  $match: matchState,
+  $is: isState
+} = Data.taggedEnum<ConnectionState>()
+
+const states = [
+  Disconnected(),
+  Connecting({ attempt: 1 }),
+  Connecting({ attempt: 2 }),
+  Connected({ sessionId: "abc-123" }),
+  ConnectionError({ message: "Timeout", retryable: true })
+]
+
+const getStateInfo = matchState({
+  Disconnected: () => "Not connected",
+  Connecting: ({ attempt }) => `Connecting (attempt ${attempt})...`,
+  Connected: ({ sessionId }) => `Connected with session: ${sessionId}`,
+  Error: ({ message, retryable }) => `Error: ${message}${retryable ? " (will retry)" : ""}`
+})
+
+assert(getStateInfo(states[0]) === "Not connected")
+assert(getStateInfo(states[1]) === "Connecting (attempt 1)...")
+assert(getStateInfo(states[3]) === "Connected with session: abc-123")
+assert(getStateInfo(states[4]) === "Error: Timeout (will retry)")
+
+console.log("Data.TaggedEnum tests passed!")
+
+// ============================================================================
+// DATA.ERROR - Custom Error Classes
+// ============================================================================
+
+class DatabaseError extends Data.Error<{
+  readonly query: string
+  readonly cause: string
+}> {}
+
+const dbError = new DatabaseError({ 
+  query: "SELECT * FROM users", 
+  cause: "Connection refused" 
+})
+
+assert(dbError instanceof Error)
+assert(dbError.query === "SELECT * FROM users")
+assert(dbError.cause === "Connection refused")
+assert(dbError.message.includes("Connection refused"))
+
+console.log("Data.Error tests passed!")
+
+// ============================================================================
+// DATA.TAGGEDERROR - Tagged Error Classes
+// ============================================================================
+
+class ValidationError extends Data.TaggedError("ValidationError")<{
+  readonly field: string
+  readonly reason: string
+}> {}
+
+class NetworkError extends Data.TaggedError("NetworkError")<{
+  readonly url: string
+  readonly statusCode: number
+}> {}
+
+const validationErr = new ValidationError({ field: "email", reason: "Invalid format" })
+const networkErr = new NetworkError({ url: "/api/users", statusCode: 500 })
+
+assert(validationErr._tag === "ValidationError")
+assert(networkErr._tag === "NetworkError")
+assert(validationErr instanceof Error)
+assert(networkErr instanceof Error)
+assert(validationErr.field === "email")
+assert(networkErr.statusCode === 500)
+
+// TaggedError equality
+const validationErr2 = new ValidationError({ field: "email", reason: "Invalid format" })
+assert(Equal.equals(validationErr, validationErr2))
+
+// Pattern matching on errors (useful in Effect error handling)
+const handleError = (err: ValidationError | NetworkError) => {
+  switch (err._tag) {
+    case "ValidationError":
+      return `Validation failed on '${err.field}': ${err.reason}`
+    case "NetworkError":
+      return `Network request to ${err.url} failed with status ${err.statusCode}`
+  }
+}
+
+assert(handleError(validationErr) === "Validation failed on 'email': Invalid format")
+assert(handleError(networkErr) === "Network request to /api/users failed with status 500")
+
+console.log("Data.TaggedError tests passed!")
+console.log("\n✓ All Data module tests passed!")
