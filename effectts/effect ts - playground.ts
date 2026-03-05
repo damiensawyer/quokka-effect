@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { Effect as E } from "effect/index"
 
 const a = E.succeed(2)

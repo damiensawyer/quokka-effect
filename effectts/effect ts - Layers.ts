@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { Effect, ServiceMap, Layer, Exit, pipe } from "effect";
 
 const assert = (condition: boolean, message?: string) => {

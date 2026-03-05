@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 // Scopes Docs https://effect.website/docs/resource-management/scope/
 
 

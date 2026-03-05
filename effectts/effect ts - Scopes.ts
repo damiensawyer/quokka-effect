@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 // Scopes Docs https://effect.website/docs/resource-management/scope/
 
 // Effect Scope provides resource management capabilities, ensuring resources

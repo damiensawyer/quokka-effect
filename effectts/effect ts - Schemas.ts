@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { Brand, Option, pipe, Schema, Exit, SchemaGetter, SchemaTransformation, Result, Issue, Effect } from "effect";
+import { Brand, Effect, Exit, Issue, Option, pipe, Result, Schema, SchemaGetter, SchemaTransformation } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
   if (!condition) {

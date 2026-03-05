@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 // Layers in Effect Tutorial
 // Based on documentation from https://effect.website/docs/service-management/layer
 

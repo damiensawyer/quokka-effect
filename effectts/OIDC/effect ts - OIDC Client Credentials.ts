@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { Effect, pipe } from "effect";
 
 const assert = (condition: boolean, message?: string) => {

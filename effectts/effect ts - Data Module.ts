@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { Data, Equal } from "effect"
 
 const assert = (condition: boolean, message?: string) => {

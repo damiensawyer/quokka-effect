@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { Context, Effect, Layer } from 'effect';
 
 // Base type for all people

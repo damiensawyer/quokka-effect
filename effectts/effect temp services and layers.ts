@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 // Effect Services - Best Practices Example
 // This file demonstrates correct patterns for defining and using Effect services
 
