@@ -10,8 +10,9 @@ import {
   Option,
   pipe,
   Schema,
-  Filter,
-  Result,
+  Exit,
+  SchemaGetter,
+  SchemaTransformation,
 } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
@@ -23,12 +24,12 @@ const assert = (condition: boolean, message?: string) => {
 
 const parsingSchemasToOptionalBrandedTypes = () => {
   const parseWithSchema = <A, I>(
-    schema: Schema.Schema<A, I>,
+    schema: Schema.Schema<A>,
     value: I | null | undefined
   ): Option.Option<A> =>
     value == null
       ? Option.none()
-      : Result.toOption(Schema.decodeUnknownEither(schema)(value));
+      : Exit.getSuccess(Schema.decodeUnknownExit(schema)(value));
 
   type UserId = number & Brand.Brand<"UserId">;
   const UserId = Brand.nominal<UserId>();
