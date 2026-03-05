@@ -1,28 +1,21 @@
-import { Brand, Schema, Option, Exit } from "effect"
+import { Brand, Schema, Option, Exit, Types } from "effect"
 
-// https://effect.website/docs/code-style/branded-types/
+type Top = Types.Top
 
-const assert = (condition: boolean, message?: string) => {
-  if (!condition) {
-    throw new Error(`Assertion failed: ${message}`);
-  }
-  if (!!message) console.log(`✓ ${message}`);
-};
-
-export const parseWithSchema = <A>(
-    schema: Schema.Schema<A>,
-    value: A | null | undefined
-): Option.Option<A> =>
+export const parseWithSchema = <S extends Top & { readonly DecodingServices: never }>(
+    schema: S,
+    value: unknown
+): Option.Option<S["Type"]> =>
     value == null
  ? Option.none() : Exit.getSuccess(Schema.decodeUnknownExit(schema)(value))
 
 type UserId = number & Brand.Brand<"UserId">
 const UserId = Brand.nominal<UserId>()
-const MyUserIdSchema = Schema.Number.pipe(Schema.fromBrand(UserId))
+const MyUserIdSchema = Schema.Number.pipe(Schema.fromBrand("UserId", UserId))
 Option.isNone(parseWithSchema(MyUserIdSchema, undefined)) //?
 Option.isNone(parseWithSchema(MyUserIdSchema, null)) //?
-Option.isNone(parseWithSchema(MyUserIdSchema, 0)) //?
-Option.isSome(parseWithSchema(MyUserIdSchema, 0)) //?
+Option.isNone(parseWithSchema(MyUserIdSchema, UserId(0))) //?
+Option.isSome(parseWithSchema(MyUserIdSchema, UserId(0))) //?
 
 type ProductId = number & Brand.Brand<"ProductId">
 const ProductId = Brand.nominal<ProductId>()
@@ -38,15 +31,9 @@ userId === userId2 //?
 userId !== productId //?
 // Refined branded types with validation
 type Int = number & Brand.Brand<"Int">
-const Int = Brand.refined<Int>(
-  (n) => Number.isInteger(n),
-  (n) => Brand.error(`Expected ${n} to be an integer`)
-)
+const Int = Brand.make<Int>((n) => Number.isInteger(n) || `Expected ${n} to be an integer`)
 type Positive = number & Brand.Brand<"Positive">
-const Positive = Brand.refined<Positive>(
-  (n) => n > 0,
-  (n) => Brand.error(`Expected ${n} to be positive`)
-)
+const Positive = Brand.make<Positive>((n) => n > 0 || `Expected ${n} to be positive`)
 // Refined type tests
 const validInt: Int = Int(5)
 assert(validInt === 5, "Valid integer created")
@@ -54,7 +41,7 @@ try {
   Int(3.14)
   assert(false, "Should have thrown")
 } catch (e: any) {
-  assert(e[0].message === "Expected 3.14 to be an integer", "Invalid integer throws")
+  assert(e.issue.message === "Expected 3.14 to be an integer", "Invalid integer throws")
 }
 // Combined branded types
 const PositiveInt = Brand.all(Int, Positive)
@@ -75,15 +62,12 @@ try {
   }
 // Custom branded types with symbols
 type Email = string & Brand.Brand<"Email">
-const Email = Brand.refined<Email>(
-  (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s),
-  (s) => Brand.error(`Invalid email: ${s}`)
-)
+const Email = Brand.make<Email>((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) || `Invalid email: ${s}`)
 const email: Email = Email("test@example.com")
 assert(email === "test@example.com", "Valid email created")
 email //?
 try {
-    var s2 = Email("blah@a.b")
+    const s2 = Email("blah@a.b")
   } catch (e) {
     e //?
   }
@@ -97,10 +81,7 @@ assert(() => { getUserById(productId) }, "Type mismatch errors")
 type AdminUserId = UserId & Brand.Brand<"AdminUserId">
 const AdminUserId = Brand.all(
   UserId,
-  Brand.refined<AdminUserId>(
-    (id) => id < 100,
-    (id) => Brand.error(`AdminUserId must be < 100, got ${id}`)
-  )
+  Brand.make<AdminUserId>((id) => id < 100 || `AdminUserId must be < 100, got ${id}`)
 )
 const adminId: AdminUserId = AdminUserId(50)
 assert(getUserById(adminId) === "User 50", "Subtype compatibility")
