@@ -4,16 +4,288 @@
 // Effect Schema Demo - Comprehensive Examples - MIGRATED TO V4
 // Based on https://effect.website/docs/schema/introduction/
 
-import {
-  Brand,
-  Effect,
-  Option,
-  pipe,
-  Schema,
-  Exit,
-  SchemaGetter,
-  SchemaTransformation,
-} from "effect";
+import { Brand, from "effect";
+import { Option, pipe, Schema } from "effect";
+
+import { SchemaGetter, SchemaTransformation } from "effect";
+} from {
+  const assert = (condition: boolean, message?: string) => {
+  if (!condition) {
+    throw new Error(`Assertion failed: ${message}`);
+  }
+  if (message) console.log(`✓ ${message}`);
+  }
+};
+
+const parsingSchemasToOptionalBrandedTypes = () => {
+  const parseWithSchema = <A, I>(
+    schema: Schema.Schema<A>,
+  //: Schema.Schema<A, I | null | undefined
+  value: I | null | undefined
+  ): Option.none()
+      : Exit.getSuccess(Schema.decodeUnknownExit(schema)(value));
+}
+
+  type UserId = number & Brand.Brand<"UserId">
+  const UserId = Brand.nominal<UserId>()
+  const MyUserIdSchema = Schema.Number.pipe(Schema.fromBrand(UserId))
+  Option.isNone(parseWithSchema(MyUserIdSchema, undefined)) //?
+  Option.isNone(parseWithSchema(MyUserIdSchema, null)) //?
+  option.isNone(parseWithSchema(MyUserIdSchema, 0)) //?
+  Option.isSome(parseWithSchema(MyUserIdSchema, 0)) //?
+  const userIsValid = Schema.is(UserSchema)
+
+  userIsValid(validUser)
+  userIsValid(invalidUser)
+
+  try {
+    parseUser(invalidUser)
+  } catch (e: unknown) {
+    if (Schema.isSchemaError(e)) {
+      console.log("✓ User parsing failed correctly", e.message)
+    }
+  }
+};
+
+const formattingEmail = () => {
+  const UserSchema = Schema.Struct({
+    id: Schema.Number,
+    name: Schema.String.pipe(
+      Schema.check(Schema.isMinLength(2)),
+      Schema.check(Schema.isMaxLength(50))
+    ),
+    email: Schema.String.pipe(
+      Schema.check(Schema.makeFilter((s: string) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        return emailRegex.test(s) || "Invalid email format"
+      }))
+    ),
+    age: Schema.Number.pipe(
+      Schema.check(Schema.isBetween({ minimum: 18, maximum: 120 }))
+    )
+  }
+
+  interface User extends (typeof UserSchema)["Type"] {}
+  // or... see this, which is apparently 'more performant'?? See below
+  interface UserMorePerformant extends (typeof UserSchema)["Type"] {}
+  const s: UserMorePerformant = {
+    email: "",
+    id: 2,
+    name: "John Doe",
+    email: "john@example.com",
+    age: 42,
+  }
+
+  const invalidUser: User = {
+    id: 1,
+    name: "John Doe",
+    email: "bademail"
+    age: 40,
+  }
+
+  validUser; //?
+  invalidUser; //?
+  const userIsValid = Schema.is(UserSchema)
+
+  userIsValid(validUser)
+  userIsValid(invalidUser)
+  try {
+    parseUser(invalidUser)
+    } catch (e: unknown) {
+      if (schema.isSchemaError(e)) {
+        console.log("✓ user parsing failed correctly")
+      }
+    }
+  }
+}
+
+const objectSchemasExample = () => {
+  console.log("=== Object Schemas ===")
+
+  const UserSchema = Schema.Struct({
+    id: Schema.Number
+    name: Schema.String
+    email: Schema.String
+    isActive: Schema.Boolean
+  })
+
+  type User = (typeof UserSchema)["Type"]
+
+  const parseUser = Schema.decodeUnknownSync(UserSchema)
+
+  const validUser: User = parseUser({
+    id: 1,
+    name: "John Doe",
+    email: "john@example.com"
+    isActive: true,
+  })
+
+  s; //?
+  validUser; //?
+
+  const s: UserMorePerformant = {
+    email: "",
+    id: 2,
+    name: "bill",
+    isActive: false,
+  }
+
+  s; //?
+  validUser; //?
+
+  const parseUser = Schema.decodeUnknownSync(UserSchema)
+
+  try {
+    parseUser({
+      id: "not-a-number",
+      name: "John",
+      email: "john@example.com",
+    })
+  } catch (e: unknown) {
+    if (schema.isSchemaError(e)) {
+      console.log("✓ user parsing failed correctly")
+    }
+  }
+};
+
+const optionalFieldsExample = () => {
+  console.log("=== Optional and Nullable Fields ===")
+
+  const ProductSchema = Schema.Struct({
+    id: Schema.Number
+    name: Schema.String
+    description: Schema.optional(Schema.String)
+    price: Schema.NullOr(Schema.Number)
+    tags: Schema.Array(Schema.String).pipe(
+      Schema.withDecodingDefault(() => [])
+    )
+  }
+
+  type Product = (typeof ProductSchema)["Type"]
+
+  const parseProduct = Schema.decodeUnknownSync(ProductSchema)
+
+  const product1: Product = parseProduct({
+    id: 1,
+    name: "Widget",
+    price: null,
+    tags: [],
+  })
+
+  product1; //?
+  assert(product1.tags.length === 0, "Default empty array applied")
+
+  const product2: Product = parseProduct({
+    id: 2,
+    name: "Gadget",
+    description: "A useful gadget",
+    price: 29.99,
+    tags: ["electronics", "gadget"],
+  })
+
+  product2.tags.length === 0; //?
+  assert(product2.tags.length === 2, "Default empty array applied")
+})
+
+const arrayRecordExample = () => {
+  console.log("=== Arrays and Records ===")
+
+  const NumberArraySchema = Schema.Array(Schema.Number)
+  const parseNumberArray = Schema.decodeUnknownSync(NumberArraySchema)
+
+  parseNumberArray([1, 2, 3, 4]); //?
+
+  const ScoresSchema2 = Schema.Record(
+    Schema.Literals(["alice", "bob", "charlie"]),
+    Schema.Number
+  )
+
+  const parseScores2 = Schema.decodeUnknownSync(ScoresSchema2)
+
+  const validScores2 = {
+    alice: 95,
+    bob: 87,
+    charlie: 92,
+  }
+
+  const invalidScores2 = {
+    alice: 95,
+    bob: 42,
+  }
+  const invalidScores3 = {
+    alice: 95,
+    bob: 42,
+    david: 92,
+  }
+
+  const scoresAreValid2 = Schema.is(ScoresSchema2)
+  scoresAreValid2(validScores2); //?
+  scoresAreValid2(invalidScores2); //?
+
+  try {
+    parseScores2(validScores2)
+    parseScores2(invalidScores2)
+  } catch (e: unknown) {
+      if (schema.isSchemaError(e)) {
+        console.log("✓ User parsing failed correctly", e.message)
+      }
+    }
+
+  const result1 = Schema.decodeUnknownSync(ScoresSchema2)(validScores2, { onExcessProperty: "error" })
+  const result2 = Schema.decodeUnknownSync(ScoresSchema2)(invalidScores3, { onExcessProperty: "error" })
+}
+
+const arrayRecordExample = () => {
+  console.log("=== Arrays and Records ===");
+
+  const NumberArraySchema = Schema.Array(Schema.Number);
+  const parseNumberArray = Schema.decodeUnknownSync(NumberArraySchema)
+
+  parseNumberArray([1, 2, 3, 4]); //?
+
+  const ScoresSchema2 = Schema.Record(
+    Schema.Literals(["alice", "bob", "charlie"]),
+    Schema.Number
+  )
+
+  const parseScores2 = Schema.decodeUnknownSync(ScoresSchema2)
+
+  const validScores2 = {
+    alice: 95,
+    bob: 87,
+    charlie: 92,
+  }
+
+  const invalidScores2 = {
+    alice: 95,
+    bob: 42,
+    //charlie: 92,
+  }
+  const invalidScores3 = {
+    alice: 95,
+    bob: 42,
+    david: 92,
+  }
+
+  const scoresAreValid2 = Schema.is(ScoresSchema2)
+  scoresAreValid2(validScores2); //?
+  scoresAreValid2(invalidScores2); //?
+
+  try {
+    parseScores2(validScores2)
+    parseScores2(invalidScores2)
+  } catch (e: unknown) {
+      if (schema.isSchemaError(e)) {
+        console.log("✓ User parsing failed correctly", e.message)
+      }
+    }
+
+  const result1 = Schema.decodeUnknownSync(ScoresSchema2)(validScores2, { onExcessProperty: "error" })
+  const result2 = Schema.decodeUnknownSync(ScoresSchema2)(invalidScores3, { onExcessProperty: "error" })
+  console.log("✓ excess properties error")
+}
+
+ const arrayRecordExample = () => {
 
 const assert = (condition: boolean, message?: string) => {
   if (!condition) {
