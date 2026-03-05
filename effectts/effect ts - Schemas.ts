@@ -1,24 +1,24 @@
 // Look at https://effect.website/docs/schema/introduction/
-// and the abiltity to generate Standards Schema https://standardschema.dev/
+// and the ability to generate Standards Schema https://standardschema.dev/
 
-// Effect Schema Demo - Comprehensive Examples
+// Effect Schema Demo - Comprehensive Examples - MIGRATED TO V4
 // Based on https://effect.website/docs/schema/introduction/
 
 import {
   Brand,
   Effect,
-  Either,
   Option,
-  ParseResult,
   pipe,
   Schema,
+  Filter,
+  Result,
 } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
-	if (!condition) {
-		throw new Error(`Assertion failed: ${message}`);
-	}
-	if (message) console.log(`✓ ${message}`);
+  if (!condition) {
+    throw new Error(`Assertion failed: ${message}`);
+  }
+  if (message) console.log(`✓ ${message}`);
 };
 
 const parsingSchemasToOptionalBrandedTypes = () => {
@@ -28,7 +28,7 @@ const parsingSchemasToOptionalBrandedTypes = () => {
   ): Option.Option<A> =>
     value == null
       ? Option.none()
-      : Either.getRight(Schema.decodeUnknownEither(schema)(value));
+      : Result.toOption(Schema.decodeUnknownEither(schema)(value));
 
   type UserId = number & Brand.Brand<"UserId">;
   const UserId = Brand.nominal<UserId>();
@@ -57,7 +57,7 @@ const basicSchemasExample = () => {
   try {
     decodeString(123); // Should throw
   } catch (e: unknown) {
-    if (ParseResult.isParseError(e)) {
+    if (Schema.isSchemaError(e)) {
       console.log("✓ String parsing failed correctly:", e.message);
     }
   }
@@ -70,18 +70,23 @@ const basicSchemasExample = () => {
 const formattingEmail = () => {
   const UserSchema = Schema.Struct({
     id: Schema.Number,
-    name: Schema.String.pipe(Schema.minLength(2), Schema.maxLength(50)),
+    name: Schema.String.pipe(
+      Schema.check(Schema.isMinLength(2)),
+      Schema.check(Schema.isMaxLength(50))
+    ),
     email: Schema.String.pipe(
-      Schema.filter((s) => {
+      Schema.check(Schema.makeFilter((s: string) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(s) || "Invalid email format";
-      })
+      }))
     ),
-    age: Schema.Number.pipe(Schema.between(18, 120)),
+    age: Schema.Number.pipe(
+      Schema.check(Schema.isBetween({ minimum: 18, maximum: 120 }))
+    ),
   });
 
-	interface User extends Schema.Schema.Type<typeof UserSchema> {}
-	//type User = Schema.Schema.Type<typeof UserSchema>  // or could also make type... but interface more performant?? See below
+  interface User extends (typeof UserSchema)["Type"] {}
+  // type User = (typeof UserSchema)["Type"]  // or could also make type... but interface more performant?? See below
 
   const parseUser = Schema.decodeUnknownSync(UserSchema);
   // Valid user
@@ -92,27 +97,27 @@ const formattingEmail = () => {
     age: 42,
   };
 
-	const invalidUser: User = {
-		id: 1,
-		name: "John Doe",
-		email: "bademail",
-		age: 40,
-	};
+  const invalidUser: User = {
+    id: 1,
+    name: "John Doe",
+    email: "bademail",
+    age: 40,
+  };
 
-	validUser; //?
-	invalidUser; //?
-	const userIsValid = Schema.is(UserSchema);
-	userIsValid(validUser); //?
-	userIsValid(invalidUser); //?
+  validUser; //?
+  invalidUser; //?
+  const userIsValid = Schema.is(UserSchema);
+  userIsValid(validUser); //?
+  userIsValid(invalidUser); //?
 
-	// Invalid user
-	try {
-		parseUser(invalidUser);
-	} catch (e: unknown) {
-		if (ParseResult.isParseError(e)) {
-			console.log("✓ User parsing failed correctly", e.message);
-		}
-	}
+  // Invalid user
+  try {
+    parseUser(invalidUser);
+  } catch (e: unknown) {
+    if (Schema.isSchemaError(e)) {
+      console.log("✓ User parsing failed correctly", e.message);
+    }
+  }
 };
 
 // === OBJECT SCHEMAS ===
@@ -128,10 +133,10 @@ const objectSchemasExample = () => {
   });
 
   // Infer TypeScript type from schema
-  type User = Schema.Schema.Type<typeof UserSchema>;
+  type User = (typeof UserSchema)["Type"];
 
-  // or... see this, which is apparently 'more peformant' https://effect.website/docs/schema/getting-started/#extracting-inferred-types
-  interface UserMorePerformant extends Schema.Schema.Type<typeof UserSchema> {}
+  // or... see this, which is apparently 'more performant' https://effect.website/docs/schema/getting-started/#extracting-inferred-types
+  interface UserMorePerformant extends (typeof UserSchema)["Type"] {}
   const s: UserMorePerformant = {
     email: "",
     id: 2,
@@ -149,22 +154,22 @@ const objectSchemasExample = () => {
     isActive: true,
   });
 
-	s; //?
-	validUser; //?
+  s; //?
+  validUser; //?
 
-	// Invalid user
-	try {
-		parseUser({
-			id: "not-a-number",
-			name: "John",
-			email: "john@example.com",
-			// missing isActive
-		});
-	} catch (e) {
-		if (ParseResult.isParseError(e)) {
-			console.log("✓ User parsing failed correctly");
-		}
-	}
+  // Invalid user
+  try {
+    parseUser({
+      id: "not-a-number",
+      name: "John",
+      email: "john@example.com",
+      // missing isActive
+    });
+  } catch (e: unknown) {
+    if (Schema.isSchemaError(e)) {
+      console.log("✓ User parsing failed correctly");
+    }
+  }
 };
 
 // === OPTIONAL AND NULLABLE FIELDS ===
@@ -176,28 +181,25 @@ const optionalFieldsExample = () => {
     name: Schema.String,
     description: Schema.optional(Schema.String), // Optional field
     price: Schema.NullOr(Schema.Number), // Can be null
-    tags: Schema.Array(Schema.String)
-      .pipe
-      // Schema.propertySignature,
-      // Schema.withConstructorDefault(() => [])
-      (),
+    tags: Schema.Array(Schema.String).pipe(
+      Schema.withDecodingDefault(() => [])
+    )
   });
 
-  type Product = Schema.Schema.Type<typeof ProductSchema>;
+  type Product = (typeof ProductSchema)["Type"];
 
   const parseProduct = Schema.decodeUnknownSync(ProductSchema);
 
   // Product with minimal fields
   const product1: Product = parseProduct({
     id: 1,
-
     name: "Widget",
     price: null,
     tags: [],
   });
 
-	product1; //?
-	assert(product1.tags.length === 0, "Default empty array applied");
+  product1; //?
+  assert(product1.tags.length === 0, "Default empty array applied");
 
   // Product with all fields
   const product2: Product = parseProduct({
@@ -208,9 +210,9 @@ const optionalFieldsExample = () => {
     tags: ["electronics", "gadget"],
   });
 
-	product2.tags.length === 0; //?
+  product2.tags.length === 0; //?
 
-	assert(product2.tags.length === 2, "Default empty array applied");
+  assert(product2.tags.length === 2, "Default empty array applied");
 };
 
 // === ARRAY AND RECORD SCHEMAS ===
@@ -223,76 +225,49 @@ const arrayRecordExample = () => {
 
   parseNumberArray([1, 2, 3, 4]); //?
 
-	// Record schema (like { [key: string]: number })
-	// const ScoresSchema = Schema.Record({
-	// 	key: Schema.String,
-	// 	value: Schema.Number,
-	// });
-	// const parseScores = Schema.decodeUnknownSync(ScoresSchema);
+  // Record schema (like { [key: string]: number })
+  // Updated to v4 syntax: Schema.Record(keySchema, valueSchema)
+  const ScoresSchema2 = Schema.Record(
+    Schema.Literals(["alice", "bob", "charlie"]),
+    Schema.Number
+  );
 
-	// const scores = parseScores({
-	// 	alice: 95,
-	// 	bob: 87,
-	// 	charlie: 92,
-	// });
+  const parseScores2 = Schema.decodeUnknownSync(ScoresSchema2);
 
-	// scores; //?
+  const validScores2 = {
+    alice: 95,
+    bob: 87,
+    charlie: 92,
+  };
 
-	// Record Schema with constrainted keys
+  const invalidScores2 = {
+    alice: 95,
+    bob: 42,
+    //charlie: 92,
+  };
+  const invalidScores3 = {
+    alice: 95,
+    bob: 42,
+    david: 92, // see below... need to do special checking if you want to enforce this as invalid
+  };
 
-	// 1. Define your string enum
-	enum Player {
-		Alice = "alice",
-		Bob = "bob",
-		Charlie = "charlie",
-	}
+  const scoresAreValid2 = Schema.is(ScoresSchema2);
+  scoresAreValid2(validScores2); //?
+  scoresAreValid2(invalidScores2); //?
 
-	// 2. Use Schema.Enums() for the key constraint
-	const ScoresSchema2 = Schema.Record({
-		//key: Schema.Enums(Player),
-		key: Schema.Literal("alice", "bob", "charlie"),
-		value: Schema.Number,
-	});
+  try {
+    parseScores2(validScores2);
+    parseScores2(invalidScores2);
+  } catch (e: unknown) {
+    if (Schema.isSchemaError(e)) {
+      console.log("✓ User parsing failed correctly", e.message);
+    }
+  }
 
-	//const parseScores2 = Schema.decodeUnknownSync(ScoresSchema2);
-
-	const validScores2 = {
-		alice: 95,
-		bob: 87,
-		charlie: 92,
-	};
-
-	const invalidScores2 = {
-		alice: 95,
-		bob: 42,
-		//charlie: 92,
-	};
-	const invalidScores3 = {
-		alice: 95,
-		bob: 42,
-		david: 92, // see below... need to do special checking if you want to enforce this as invalid
-	};
-
-	const scoresAreValid2 = Schema.is(ScoresSchema2);
-	scoresAreValid2(validScores2); //?
-	scoresAreValid2(invalidScores2); //?
-	const parseScores2 = Schema.decodeUnknownSync(ScoresSchema2);
-
-	try {
-		parseScores2(validScores2);
-		parseScores2(invalidScores2);
-	} catch (e: unknown) {
-		if (ParseResult.isParseError(e)) {
-			console.log("✓ User parsing failed correctly", e.message);
-		}
-	}
-
-	// If you want to fail david...
-	const OptionalScoresSchema = Schema.partial(ScoresSchema2);
-	const validateStrict = Schema.validateOption(OptionalScoresSchema);
-	Option.isSome(validateStrict(validScores2, { onExcessProperty: "error" })); //?
-	Option.isSome(validateStrict(invalidScores2, { onExcessProperty: "error" })); //?
-	Option.isSome(validateStrict(invalidScores3, { onExcessProperty: "error" })); //?
+  // Note: Schema.partial and Schema.validateOption have been removed in v4
+  // Use onExcessProperty option for strict validation
+  const result1 = Schema.decodeUnknownSync(ScoresSchema2)(validScores2, { onExcessProperty: "error" });
+  const result2 = Schema.decodeUnknownSync(ScoresSchema2)(invalidScores3, { onExcessProperty: "error" });
 };
 
 // === BRANDED TYPES ===
@@ -300,42 +275,41 @@ const brandedTypesExample = () => {
   console.log("=== Branded Types ===");
 
   // Create branded types for type safety
-  const UserIdSchema = pipe(
-    Schema.Number,
-    Schema.int(), // Must be integer
-    Schema.positive(), // Must be positive
+  // Updated to v4: use .check() method
+  const UserIdSchema = Schema.Number.pipe(
+    Schema.check(Schema.isInt()),
+    Schema.check(Schema.isGreaterThan(0)),
     Schema.brand("UserId")
   );
 
-  const EmailSchema = pipe(
-    Schema.String,
-    Schema.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/), // Email regex
+  const EmailSchema = Schema.String.pipe(
+    Schema.check(Schema.isPattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)),
     Schema.brand("Email")
   );
 
-  type UserId = Schema.Schema.Type<typeof UserIdSchema>;
-  type Email = Schema.Schema.Type<typeof EmailSchema>;
+  type UserId = (typeof UserIdSchema)["Type"];
+  type Email = (typeof EmailSchema)["Type"];
 
   const parseUserId = Schema.decodeUnknownSync(UserIdSchema);
   const parseEmail = Schema.decodeUnknownSync(EmailSchema);
 
-	try {
-		parseUserId(123); //?
-		parseEmail("user@example.com"); //?
-		parseUserId(-5); // Should fail (not positive)
-	} catch (e) {
-		if (ParseResult.isParseError(e)) {
-			console.log("✓ Negative UserId rejected");
-		}
-	}
+  try {
+    parseUserId(123); //?
+    parseEmail("user@example.com"); //?
+    parseUserId(-5); // Should fail (not positive)
+  } catch (e: unknown) {
+    if (Schema.isSchemaError(e)) {
+      console.log("✓ Negative UserId rejected");
+    }
+  }
 
-	try {
-		parseEmail("invalid-email"); // Should fail (bad format)
-	} catch (e) {
-		if (ParseResult.isParseError(e)) {
-			console.log("✓ Invalid email rejected");
-		}
-	}
+  try {
+    parseEmail("invalid-email"); // Should fail (bad format)
+  } catch (e: unknown) {
+    if (Schema.isSchemaError(e)) {
+      console.log("✓ Invalid email rejected");
+    }
+  }
 };
 
 // === TRANSFORMATIONS ===
@@ -343,12 +317,13 @@ const transformationsExample = () => {
   console.log("=== Transformations ===");
 
   // Transform string to Date
+  // Updated to v4: Schema.Date instead of Schema.DateFromSelf
   const DateFromStringSchema = Schema.transform(
     Schema.String,
-    Schema.DateFromSelf,
+    Schema.Date,
     {
-      decode: (s) => new Date(s),
-      encode: (d) => d.toISOString(),
+      decode: (s: string) => new Date(s),
+      encode: (d: Date) => d.toISOString(),
     }
   );
 
@@ -365,16 +340,16 @@ const transformationsExample = () => {
   const TemperatureSchema = Schema.transform(
     Schema.Struct({
       value: Schema.Number,
-      unit: Schema.Literal("C", "F"),
+      unit: Schema.Literals(["C", "F"]),
     }),
     Schema.Struct({
       celsius: Schema.Number,
     }),
     {
-      decode: ({ value, unit }) => ({
+      decode: ({ value, unit }: { value: number; unit: "C" | "F" }) => ({
         celsius: unit === "C" ? value : ((value - 32) * 5) / 9,
       }),
-      encode: ({ celsius }) => ({
+      encode: ({ celsius }: { celsius: number }) => ({
         value: celsius,
         unit: "C" as const,
       }),
@@ -388,17 +363,17 @@ const transformationsExample = () => {
 
   // Convert "on"/"off" strings to boolean
   const BooleanFromString = Schema.transform(
-    Schema.Literal("on", "off"),
+    Schema.Literals(["on", "off"]),
     Schema.Boolean,
     {
       // optional but you get better error messages from TypeScript
       strict: true,
-      decode: (literal) => literal === "on", // Always succeeds here
-      encode: (bool) => (bool ? "on" : "off"),
+      decode: (literal: "on" | "off") => literal === "on", // Always succeeds here
+      encode: (bool: boolean) => (bool ? "on" : "off"),
     }
   );
-  type EncodedType = typeof BooleanFromString.Encoded; // "on" | "off"
-  type DecodedType = typeof BooleanFromString.Type; // boolean
+  type EncodedType = (typeof BooleanFromString)["Encoded"]; // "on" | "off"
+  type DecodedType = (typeof BooleanFromString)["Type"]; // boolean
 
   const s: EncodedType = "on"; //?
   const t: EncodedType = "off"; //?
@@ -410,119 +385,110 @@ const transformationsExample = () => {
   Schema.encodeUnknownSync(BooleanFromString)(true); //?
   Schema.encodeUnknownSync(BooleanFromString)(false); //?
 
-  // Convert "on"/"off" strings to boolean with better error messages
+  // Convert "happy"/"sad" strings to boolean with better error messages
   {
     const BooleanFromStringWithFail = Schema.transformOrFail(
-      Schema.Literal("happy", "sad"),
+      Schema.Literals(["happy", "sad"]),
       Schema.Boolean,
       {
         strict: true,
-        decode: (input, options, ast) => {
-          if (input === "happy") return Either.right(true);
-          if (input === "sad") return Either.right(false);
-          return Either.left(new ParseResult.Type(ast, input));
+        decode: (input: "happy" | "sad", options, ast) => {
+          if (input === "happy") return Result.succeed(true);
+          if (input === "sad") return Result.succeed(false);
+          return Result.fail(new ParseResult.Type(ast, input));
         },
-        encode: (toI, options, ast) =>
-          ParseResult.succeed(toI ? ("happy" as const) : ("sad" as const)),
+        encode: (toI: boolean, options, ast) =>
+          Result.succeed(toI ? ("happy" as const) : ("sad" as const))
       }
     );
-    type EncodedType = typeof BooleanFromStringWithFail.Encoded; // "on" | "off"
-    type DecodedType = typeof BooleanFromStringWithFail.Type; // boolean
+    type EncodedType2 = (typeof BooleanFromStringWithFail)["Encoded"]; // "happy" | "sad"
+    type DecodedType2 = (typeof BooleanFromStringWithFail)["Type"]; // boolean
 
-    const s: EncodedType = "happy"; //?
-    const t: EncodedType = "sad"; //?
-    const u: DecodedType = true; //?
+    const s2: EncodedType2 = "happy"; //?
+    const t2: EncodedType2 = "sad"; //?
+    const u2: DecodedType2 = true; //?
 
-	
-	Either.isRight(Schema.encodeUnknownEither(BooleanFromStringWithFail)(true)) //?
-	Either.isRight(Schema.encodeUnknownEither(BooleanFromStringWithFail)(false)) //?
-	Either.getOrThrow(Schema.encodeUnknownEither(BooleanFromStringWithFail)(true)) //?
-	Either.getOrThrow(Schema.encodeUnknownEither(BooleanFromStringWithFail)(false)) //?
+    Result.isSuccess(Schema.encodeUnknownEither(BooleanFromStringWithFail)(true)); //?
+    Result.isSuccess(Schema.encodeUnknownEither(BooleanFromStringWithFail)(false)); //?
+    Result.getOrThrow(Schema.encodeUnknownEither(BooleanFromStringWithFail)(true)); //?
+    Result.getOrThrow(Schema.encodeUnknownEither(BooleanFromStringWithFail)(false)); //?
 
-	// Either.getLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad bad bad")) //?
-	// Either.isLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad bad bad")) //?
-
-  	 Either.isRight(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy"))  //?
-	 Either.isRight(Schema.decodeUnknownEither(BooleanFromStringWithFail)("sad")) //?
-	 Either.getOrThrow(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy")) //?
-	 Either.getOrThrow(Schema.decodeUnknownEither(BooleanFromStringWithFail)("sad")) //?
-	 Either.isLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad bad bad")) //?
-	 Either.isLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("sad")) //?
-	 Either.isLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy")) //?
-	 Option.getOrThrow(Either.getLeft(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad"))).message //?
-
-//   Schema.decodeUnknownSync(BooleanFromStringWithFail)("off") //?
-//   Schema.encodeUnknownSync(BooleanFromStringWithFail)(true) //?
-//   Schema.encodeUnknownSync(BooleanFromStringWithFail)(false) //?
-}
- }
+    Result.isSuccess(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy")); //?
+    Result.isSuccess(Schema.decodeUnknownEither(BooleanFromStringWithFail)("sad")); //?
+    Result.getOrThrow(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy")); //?
+    Result.getOrThrow(Schema.decodeUnknownEither(BooleanFromStringWithFail)("sad")); //?
+    Result.isFailure(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad bad bad")); //?
+    Result.isFailure(Schema.decodeUnknownEither(BooleanFromStringWithFail)("sad")); //?
+    Result.isFailure(Schema.decodeUnknownEither(BooleanFromStringWithFail)("happy")); //?
+    Option.getOrThrow(Result.getFailure(Schema.decodeUnknownEither(BooleanFromStringWithFail)("bad")))?.message; //?
+  }
+};
 
 // === UNION TYPES (DISCRIMINATED UNIONS) ===
 const unionTypesExample = () => {
   console.log("=== Union Types ===");
 
-	// Simple union
-	const StatusSchema = Schema.Union(
-		Schema.Literal("pending"),
-		Schema.Literal("approved"),
-		Schema.Literal("rejected"),
-	);
-	const positiveNumber = pipe(Schema.Number, Schema.positive())
+  // Simple union
+  // Updated to v4: Schema.Union takes an array
+  const StatusSchema = Schema.Union([
+    Schema.Literal("pending"),
+    Schema.Literal("approved"),
+    Schema.Literal("rejected"),
+  ]);
+  
+  const positiveNumber = Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0)));
 
-	// Discriminated union
-	const ShapeSchema = Schema.Union(
-		Schema.Struct({
-			kind: Schema.Literal("circle"),
-			radius: positiveNumber,
-		}),
-		Schema.Struct({
-			kind: Schema.Literal("rectangle"),
-			width: positiveNumber,
-			height: positiveNumber,
-		}),
-		Schema.Struct({
-			kind: Schema.Literal("triangle"),
-			base: positiveNumber,
-			height: positiveNumber
-		}),
-	);
+  // Discriminated union
+  const ShapeSchema = Schema.Union([
+    Schema.Struct({
+      kind: Schema.Literal("circle"),
+      radius: positiveNumber,
+    }),
+    Schema.Struct({
+      kind: Schema.Literal("rectangle"),
+      width: positiveNumber,
+      height: positiveNumber,
+    }),
+    Schema.Struct({
+      kind: Schema.Literal("triangle"),
+      base: positiveNumber,
+      height: positiveNumber
+    }),
+  ]);
 
-  type Shape = Schema.Schema.Type<typeof ShapeSchema>;
+  type Shape = (typeof ShapeSchema)["Type"];
 
   const parseStatus = Schema.decodeUnknownSync(StatusSchema);
   const parseShape = Schema.decodeUnknownSync(ShapeSchema);
 
   parseStatus("approved"); //?
 
-	const circle: Shape = {
-		kind: "circle",
-		radius: 5,
-	};
+  const circle: Shape = {
+    kind: "circle",
+    radius: 5,
+  };
 
-	const rectangle: Shape = {
-		kind: "rectangle",
-		width: 10,
-		height: 8,
-	};
+  const rectangle: Shape = {
+    kind: "rectangle",
+    width: 10,
+    height: 8,
+  };
 
-	const triangle: Shape = {
-		kind: "triangle",
-		base:-4,
-		height: 8,
-	};
+  const triangle: Shape = {
+    kind: "triangle",
+    base: -4,
+    height: 8,
+  };
 
-	// circle; //?
-	// rectangle; //?
-	//const parseShape = Schema.decodeUnknownSync(EmailSchema);
-	try {
-		parseShape(circle); //?
-		parseShape(rectangle); //?
-		parseShape(triangle); //?
-	} catch (e) {
-		if (ParseResult.isParseError(e)) {
-			console.log("✓ Invalid shape", e.message);
-		}
-	}
+  try {
+    parseShape(circle); //?
+    parseShape(rectangle); //?
+    parseShape(triangle); //?
+  } catch (e) {
+    if (Schema.isSchemaError(e)) {
+      console.log("✓ Invalid shape", e.message);
+    }
+  }
 };
 
 // === ERROR HANDLING WITH EFFECT ===
@@ -531,8 +497,13 @@ const errorHandlingExample = async () => {
 
   const PersonSchema = Schema.Struct({
     name: Schema.String,
-    age: pipe(Schema.Number, Schema.int(), Schema.between(0, 150)),
-    email: pipe(Schema.String, Schema.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)),
+    age: Schema.Number.pipe(
+      Schema.check(Schema.isInt()),
+      Schema.check(Schema.isBetween({ minimum: 0, maximum: 150 }))
+    ),
+    email: Schema.String.pipe(
+      Schema.check(Schema.isPattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/))
+    ),
   });
 
   // Using Effect for error handling
@@ -598,7 +569,7 @@ const externalDataExample = () => {
         Schema.Struct({
           id: Schema.Number,
           title: Schema.String,
-          publishedAt: Schema.DateFromSelf,
+          publishedAt: Schema.Date, // Updated to v4: Schema.Date instead of DateFromSelf
           author: Schema.Struct({
             name: Schema.String,
             email: Schema.String,
@@ -614,7 +585,7 @@ const externalDataExample = () => {
       }),
     }),
     {
-      decode: (raw) => ({
+      decode: (raw: typeof ApiResponseSchema.Type) => ({
         articles: raw.data.map((article) => ({
           id: article.id,
           title: article.title,
@@ -629,7 +600,7 @@ const externalDataExample = () => {
           perPage: raw.meta.per_page,
         },
       }),
-      encode: (processed) => ({
+      encode: (processed: typeof ProcessedResponseSchema.Type) => ({
         data: processed.articles.map((article) => ({
           id: article.id,
           title: article.title,
@@ -682,8 +653,8 @@ const compositionExample = () => {
 
   // Base schemas
   const TimestampSchema = Schema.Struct({
-    createdAt: Schema.DateFromSelf,
-    updatedAt: Schema.DateFromSelf,
+    createdAt: Schema.Date, // Updated to v4: Schema.Date instead of DateFromSelf
+    updatedAt: Schema.Date,
   });
 
   const AuditSchema = Schema.Struct({
@@ -691,25 +662,26 @@ const compositionExample = () => {
     updatedBy: Schema.String,
   });
 
-  // Compose schemas
-  const BaseEntitySchema = Schema.extend(TimestampSchema, AuditSchema);
+  // Updated to v4: Use spread operator with .fields instead of Schema.extend
+  const BaseEntitySchema = Schema.Struct({
+    ...TimestampSchema.fields,
+    ...AuditSchema.fields,
+  });
 
   // Extend for specific entities
-  const UserEntitySchema = Schema.extend(
-    BaseEntitySchema,
-    Schema.Struct({
-      id: Schema.Number,
-      name: Schema.String,
-      email: Schema.String,
-      role: Schema.Union(
-        Schema.Literal("admin"),
-        Schema.Literal("user"),
-        Schema.Literal("guest")
-      ),
-    })
-  );
+  const UserEntitySchema = Schema.Struct({
+    ...BaseEntitySchema.fields,
+    id: Schema.Number,
+    name: Schema.String,
+    email: Schema.String,
+    role: Schema.Union([
+      Schema.Literal("admin"),
+      Schema.Literal("user"),
+      Schema.Literal("guest")
+    ]),
+  });
 
-  type UserEntity = Schema.Schema.Type<typeof UserEntitySchema>;
+  type UserEntity = (typeof UserEntitySchema)["Type"];
 
   const user: UserEntity = {
     id: 1,
@@ -728,18 +700,18 @@ const compositionExample = () => {
 // === RUN ALL EXAMPLES ===
 const runAll = async () => {
   try {
-    parsingSchemasToOptionalBrandedTypes(),
-      //basicSchemasExample();
-      // objectSchemasExample();
-      //formattingEmail();
-      // optionalFieldsExample();
-      // arrayRecordExample();
-      // brandedTypesExample();
-      transformationsExample();
-    // unionTypesExample();
-    // await errorHandlingExample();
-    // externalDataExample();
-    // compositionExample();
+    parsingSchemasToOptionalBrandedTypes();
+    basicSchemasExample();
+    objectSchemasExample();
+    formattingEmail();
+    optionalFieldsExample();
+    arrayRecordExample();
+    brandedTypesExample();
+    transformationsExample();
+    unionTypesExample();
+    await errorHandlingExample();
+    externalDataExample();
+    compositionExample();
 
     console.log("\n✅ All Schema examples completed!");
   } catch (error) {
