@@ -1,6 +1,5 @@
-import { Effect, Context, Layer, Exit, pipe } from "effect";
+import { Effect, ServiceMap, Layer, Exit, pipe } from "effect";
 
-// === HELPERS ===
 const assert = (condition: boolean, message?: string) => {
   if (!condition) throw new Error(`Assertion failed: ${message}`);
   if (message) console.log(`✓ ${message}`);
@@ -10,19 +9,18 @@ const assert = (condition: boolean, message?: string) => {
 const basicLayerExample = async () => {
   console.log("\n=== Basic Layer Example ===");
 
-  class Database extends Context.Tag("Database")<
-    Database,
-    { readonly query: (sql: string) => Effect.Effect<string[]> }
-  >() {}
+  class Database extends ServiceMap.Service<Database, {
+    readonly query: (sql: string) => Effect.Effect<string[]>
+  }>()("Database") {}
 
   const DatabaseLive = Layer.succeed(
     Database,
-    Database.of({
-      query: (sql) => Effect.sync(() => {
+    {
+      query: (sql: string) => Effect.sync(() => {
         console.log(`Executing query: ${sql}`);
         return ["result1", "result2"];
       })
-    })
+    }
   );
 
   const program = Effect.gen(function* () {
@@ -38,8 +36,8 @@ const basicLayerExample = async () => {
 const layerCompositionExample = async () => {
   console.log("\n=== Layer Composition Example ===");
 
-  class Config extends Context.Tag("Config")<Config, { readonly url: string }>() {}
-  class Database extends Context.Tag("Database")<Database, { readonly connect: Effect.Effect<string> }>() {}
+  class Config extends ServiceMap.Service<Config, { readonly url: string }>()("Config") {}
+  class Database extends ServiceMap.Service<Database, { readonly connect: Effect.Effect<string> }>()("Database") {}
 
   const ConfigLive = Layer.succeed(Config, { url: "postgres://localhost" });
 
@@ -68,7 +66,7 @@ const layerCompositionExample = async () => {
 const scopedLayersExample = async () => {
   console.log("\n=== Scoped Layers Example ===");
 
-  class Connection extends Context.Tag("Connection")<Connection, { readonly status: string }>() {}
+  class Connection extends ServiceMap.Service<Connection, { readonly status: string }>()("Connection") {}
 
   let isClosed = false;
 
@@ -96,11 +94,11 @@ const scopedLayersExample = async () => {
   assert(isClosed, "Scoped resource was cleaned up");
 };
 
-// === 4. LAYER ERROR HANDLING (Fixing the Exit type error) ===
+// === 4. LAYER ERROR HANDLING ===
 const layerErrorHandlingExample = async () => {
   console.log("\n=== Layer Error Handling Example ===");
 
-  class Config extends Context.Tag("Config")<Config, { readonly val: string }>() {}
+  class Config extends ServiceMap.Service<Config, { readonly val: string }>()("Config") {}
   const ConfigFailure = Layer.fail(new Error("Missing Config"));
 
   const program = Effect.gen(function* () {
@@ -111,7 +109,7 @@ const layerErrorHandlingExample = async () => {
     program.pipe(Effect.provide(ConfigFailure))
   );
 
-  // FIX: Type Guard to access .cause safely
+  // Type Guard to access .cause safely
   if (Exit.isFailure(exit)) {
     assert(exit.cause.toString().includes("Missing Config"), "Caught expected layer error");
   } else {
@@ -124,7 +122,7 @@ const layerMemoizationExample = async () => {
   console.log("\n=== Layer Memoization Example ===");
 
   let initCount = 0;
-  class Service extends Context.Tag("Service")<Service, { readonly id: number }>() {}
+  class Service extends ServiceMap.Service<Service, { readonly id: number }>()("Service") {}
 
   const ServiceLive = Layer.effect(
     Service,

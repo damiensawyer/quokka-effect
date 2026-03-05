@@ -1,7 +1,8 @@
 // Effect Services - Best Practices Example
 // This file demonstrates correct patterns for defining and using Effect services
+// Updated for Effect v4
 
-import { Effect, Context, Console } from "effect";
+import { Effect, ServiceMap, Console } from "effect";
 
 const assert = (condition: boolean, message?: string) => {
     if (!condition) {
@@ -15,14 +16,12 @@ const superBasicExample = async () => {
     console.log("\n=== Direct Effect Example ===");
 
     // Define service with method that takes a name parameter
-    class Greeter extends Context.Tag("Greeter")<
-        Greeter,
-        {
-            getMessage: (name: string) => Effect.Effect<string, never, never>
-        }
-    >() { }
+    // v4: ServiceMap.Service<Self, Shape>()(id)
+    class Greeter extends ServiceMap.Service<Greeter, {
+        getMessage: (name: string) => Effect.Effect<string, never, never>
+    }>()("Greeter") { }
 
-    type GreeterService = Context.Tag.Service<Greeter> // if you do this you can strongly type
+    type GreeterService = ServiceMap.Service.Shape<typeof Greeter>
 
     // Program using the service
     const program = Effect.gen(function* () {
@@ -32,12 +31,12 @@ const superBasicExample = async () => {
     });
 
     // Kind implementation
-    const kindGreeter:GreeterService = {
+    const kindGreeter: GreeterService = {
         getMessage: (name: string) => Effect.succeed(`Have a great day ${name}!`)
     };
 
     // Mean implementation
-    const meanGreeter:GreeterService = {
+    const meanGreeter: GreeterService = {
         getMessage: (name: string) => Effect.gen(function* (){
             yield* Console.log('say some message')
             return `Go away ${name}!`})
@@ -45,10 +44,10 @@ const superBasicExample = async () => {
 
     // Run with kind greeter
     const kindResult = await Effect.runPromise(Effect.provideService(program, Greeter, kindGreeter))
-    kindResult //?
+    kindResult
 
     const meanResult = await Effect.runPromise(Effect.provideService(program, Greeter, meanGreeter))
-    meanResult //?
+    meanResult
     
 };
 
@@ -57,40 +56,31 @@ const superBasicExample = async () => {
 const sampleShowingHowToPassMultipleServicesToProgram = async () => {
 
     // Service 1 and implementations
-    class TextManipulator extends Context.Tag("MyService")<
-        TextManipulator,
-        {
-            modify: (source: string) => string
-        }
-    >() { }
-    type TextManipulatorType = Context.Tag.Service<TextManipulator>
+    class TextManipulator extends ServiceMap.Service<TextManipulator, {
+        modify: (source: string) => string
+    }>()("TextManipulator") { }
+    type TextManipulatorType = ServiceMap.Service.Shape<typeof TextManipulator>
 
-    const capitalizer: TextManipulatorType = { modify: (source) => source.toUpperCase() };
-    const spacer: TextManipulatorType = { modify: (source) => source.split('').join(' ') };
+    const capitalizer: TextManipulatorType = { modify: (source: string) => source.toUpperCase() };
+    const spacer: TextManipulatorType = { modify: (source: string) => source.split('').join(' ') };
 
     // Service 2 and implementations
-    class Greeter extends Context.Tag("Greeter")<
-        Greeter,
-        {
-            readonly getMessage: (name: string) => Effect.Effect<string, never, never>
-        }
-    >() { }
+    class Greeter extends ServiceMap.Service<Greeter, {
+        readonly getMessage: (name: string) => Effect.Effect<string, never, never>
+    }>()("Greeter") { }
 
-    type GreeterType = Context.Tag.Service<Greeter>
+    type GreeterType = ServiceMap.Service.Shape<typeof Greeter>
 
     // implementations
     const kindGreeter: GreeterType = { getMessage: (name: string) => Effect.succeed(`Have a great day ${name}!`) };
     const meanGreeter: GreeterType = { getMessage: (name: string) => Effect.succeed(`Go Away ${name}!`) };
 
     // Service 3 and implementations
-    class TextDecorator extends Context.Tag("TextDecorator")<
-        TextDecorator,
-        {
-            modify: (source: string) => string
-        }
-    >() { }
+    class TextDecorator extends ServiceMap.Service<TextDecorator, {
+        modify: (source: string) => string
+    }>()("TextDecorator") { }
 
-    type TextDecoratorType = Context.Tag.Service<TextDecorator>
+    type TextDecoratorType = ServiceMap.Service.Shape<typeof TextDecorator>
 
     // implementations
     const dashDecorator: TextDecoratorType = { modify: (source: string) => `----- ${source} -----` };
@@ -108,21 +98,21 @@ const sampleShowingHowToPassMultipleServicesToProgram = async () => {
     });
 
 
-    const context1 = Context.empty().pipe(
-        Context.add(Greeter, kindGreeter),
-        Context.add(TextDecorator, spacer),
-        Context.add(TextManipulator, starDecorator)
+    const map1 = ServiceMap.empty().pipe(
+        ServiceMap.add(Greeter, kindGreeter),
+        ServiceMap.add(TextDecorator, spacer),
+        ServiceMap.add(TextManipulator, starDecorator)
     );
 
-    const context2 = Context.empty().pipe(
-        Context.add(Greeter, kindGreeter),
-        Context.add(TextDecorator, capitalizer),
-        Context.add(TextManipulator, dashDecorator)
+    const map2 = ServiceMap.empty().pipe(
+        ServiceMap.add(Greeter, kindGreeter),
+        ServiceMap.add(TextDecorator, capitalizer),
+        ServiceMap.add(TextManipulator, dashDecorator)
     );
 
     // Provide the entire context at once (without using Layers)
-    (await Effect.runPromise(Effect.provide(program, context1)));//?
-    (await Effect.runPromise(Effect.provide(program, context2)));//?
+    (await Effect.runPromise(Effect.provide(program, map1)));
+    (await Effect.runPromise(Effect.provide(program, map2)));
 
 };
 
@@ -134,15 +124,10 @@ const directEffectExample = async () => {
     console.log("\n=== Direct Effect Example ===");
 
     // Define service with parameterless method as direct Effect
-    // Explaining Context.Tag https://claude.ai/chat/55e4b077-7b61-4e79-bdac-9571b8eb0826
-    // it is KIND of like defining an interace in C# which services will implement
-    class Counter extends Context.Tag("Counter")<
-        Counter,
-        {
-            // Define increment as a direct Effect (not a function)
-            readonly increment: Effect.Effect<number>
-        }
-    >() { }
+    class Counter extends ServiceMap.Service<Counter, {
+        // Define increment as a direct Effect (not a function)
+        readonly increment: Effect.Effect<number>
+    }>()("Counter") { }
 
 
     // Program using the service
@@ -181,13 +166,10 @@ const parametricMethodExample = async () => {
     console.log("\n=== Parametric Method Example ===");
 
     // Define service with methods that take parameters
-    class Calculator extends Context.Tag("Calculator")<
-        Calculator,
-        {
-            // Define add as a function that takes parameters and returns an Effect
-            readonly add: (a: number, b: number) => Effect.Effect<number>
-        }
-    >() { }
+    class Calculator extends ServiceMap.Service<Calculator, {
+        // Define add as a function that takes parameters and returns an Effect
+        readonly add: (a: number, b: number) => Effect.Effect<number>
+    }>()("Calculator") { }
 
     // Program using the service
     const program = Effect.gen(function* () {
@@ -215,7 +197,7 @@ const parametricMethodExample = async () => {
         Effect.provideService(program, Calculator, calculatorImpl)
     );
 
-    assert(result == 12);
+    assert(result === 12);
 };
 
 // === APPROACH 3: FUNCTION RETURNING EFFECT (ALTERNATIVE) ===
@@ -224,20 +206,10 @@ const functionReturningEffectExample = async () => {
     console.log("\n=== Function Returning Effect Example ===");
 
     // Define service with parameterless method as a function returning an Effect
-    class RandomGenerator extends Context.Tag("RandomGenerator")<
-        RandomGenerator,
-        {
-            // Define nextInt as a function that returns an Effect
-            readonly nextInt: () => Effect.Effect<number>  // see in here for a discussion of the two versions: https://claude.ai/chat/55e4b077-7b61-4e79-bdac-9571b8eb0826
-            /*
-                Direct Effects (for parameterless operations):
-                typescriptreadonly getCurrentLevel: Effect.Effect<string> // BUT Initialization happens once at service creation time, which may be unwanted for some effects
-
-                Functions Returning Effects (for operations with parameters):
-                typescriptreadonly log: (message: string) => Effect.Effect<void>
-            */
-        }
-    >() { }
+    class RandomGenerator extends ServiceMap.Service<RandomGenerator, {
+        // Define nextInt as a function that returns an Effect
+        readonly nextInt: () => Effect.Effect<number>
+    }>()("RandomGenerator") { }
 
     // Program using the service
     const program = Effect.gen(function* () {
@@ -272,13 +244,10 @@ const pipeStyleExample = async () => {
     console.log("\n=== Pipe Style Example ===");
 
     // Define service
-    class Logger extends Context.Tag("Logger")<
-        Logger,
-        {
-            readonly log: (message: string) => Effect.Effect<void>,
-            readonly getCurrentLevel: Effect.Effect<string>
-        }
-    >() { }
+    class Logger extends ServiceMap.Service<Logger, {
+        readonly log: (message: string) => Effect.Effect<void>,
+        readonly getCurrentLevel: Effect.Effect<string>
+    }>()("Logger") { }
 
     // Program using Do/pipe syntax
     const program = Effect.gen(function* () {
@@ -311,21 +280,15 @@ const multiServiceExample = async () => {
     console.log("\n=== Multiple Services Example ===");
 
     // Define services
-    class Config extends Context.Tag("Config")<
-        Config,
-        {
-            readonly get: (key: string) => Effect.Effect<string>,
-            readonly isDevelopment: Effect.Effect<boolean>
-        }
-    >() { }
+    class Config extends ServiceMap.Service<Config, {
+        readonly get: (key: string) => Effect.Effect<string>,
+        readonly isDevelopment: Effect.Effect<boolean>
+    }>()("Config") { }
 
-    class Database extends Context.Tag("Database")<
-        Database,
-        {
-            readonly query: (sql: string) => Effect.Effect<string[]>,
-            readonly getConnectionInfo: Effect.Effect<string>
-        }
-    >() { }
+    class Database extends ServiceMap.Service<Database, {
+        readonly query: (sql: string) => Effect.Effect<string[]>,
+        readonly getConnectionInfo: Effect.Effect<string>
+    }>()("Database") { }
 
     // Program using multiple services
     const program = Effect.gen(function* () {
@@ -368,14 +331,14 @@ const multiServiceExample = async () => {
     };
 
     // Provide multiple services at once
-    const context = Context.empty().pipe(
-        Context.add(Config, configImpl),
-        Context.add(Database, dbImpl)
+    const map = ServiceMap.empty().pipe(
+        ServiceMap.add(Config, configImpl),
+        ServiceMap.add(Database, dbImpl)
     );
 
     // Run the program
     const result = await Effect.runPromise(
-        Effect.provide(program, context)
+        Effect.provide(program, map)
     );
 
     assert(result.development === true, "Development mode is enabled");
